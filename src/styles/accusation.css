@@ -1,0 +1,249 @@
+.accusation-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px;
+  gap: 22px;
+  overflow-y: auto;
+}
+
+.accusation-intro {
+  text-align: center;
+  max-width: 560px;
+  position: relative;
+}
+
+.accusation-back {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.accusation-intro h2 {
+  font-size: 1.7rem;
+  margin: 8px 0 10px;
+}
+
+.accusation-intro p {
+  color: var(--color-text-muted);
+}
+
+.accusation-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  width: 100%;
+  max-width: 960px;
+}
+
+.accusation-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.accusation-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.accusation-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.accusation-option.text-only {
+  padding: 12px;
+}
+
+.accusation-option:hover {
+  border-color: var(--color-gold-dim);
+}
+
+.accusation-option.selected {
+  border-color: var(--color-gold);
+  background: #241f14;
+}
+
+.accusation-submit {
+  padding: 14px 40px;
+  font-size: 1rem;
+  justify-content: center;
+}
+
+.rebuttal-card {
+  width: min(560px, 92vw);
+  padding: 30px 32px;
+  text-align: center;
+}
+
+.rebuttal-card h2 {
+  font-size: 1.5rem;
+  margin: 8px 0 14px;
+  color: var(--color-danger-bright);
+}
+
+.rebuttal-lines {
+  text-align: left;
+  margin: 16px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+/* Ending ------------------------------------------------------------------- */
+
+.ending-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 22px;
+  overflow-y: auto;
+}
+
+.ending-card {
+  width: min(640px, 92vw);
+  text-align: center;
+  padding: 44px;
+}
+
+.ending-text {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.65;
+  min-height: 7em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.4s ease;
+}
+
+.newspaper-card {
+  width: min(640px, 94vw);
+  background: #ece6d6;
+  color: #1c1a16;
+  padding: 36px 40px 30px;
+  border-radius: 2px;
+  box-shadow: var(--shadow-panel);
+  position: relative;
+  animation: popIn 0.3s ease;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.newspaper-masthead {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.newspaper-card .gold-rule {
+  background: linear-gradient(90deg, transparent, #1c1a16 20%, #1c1a16 80%, transparent);
+  margin: 10px 0 16px;
+}
+
+.newspaper-headline {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.25;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.newspaper-subhead {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  text-align: center;
+  font-size: 1rem;
+  margin-bottom: 18px;
+  color: #4a4438;
+}
+
+.newspaper-body {
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.ending-stamp {
+  display: table;
+  margin: 20px auto 4px;
+  padding: 8px 22px;
+  border: 3px solid #a3453e;
+  color: #a3453e;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  transform: rotate(-4deg);
+}
+
+.ending-footer {
+  width: min(640px, 94vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.ending-stats {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+}
+
+.ending-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ending-stat-num {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--color-gold);
+}
+
+.ending-stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-dim);
+}
+
+.ending-stat-badge {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  background: var(--color-gold);
+  color: #1a1508;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.ending-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
