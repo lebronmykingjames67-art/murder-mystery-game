@@ -1,0 +1,101 @@
+/* Neutral top-level chooser between the two games in this build. Deliberately
+   independent of both games' palettes (noir gold / echo cold-blue) since it's
+   the first thing anyone sees, before either theme applies. */
+
+.game-select-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.2rem;
+  padding: 2rem 1.5rem;
+  background: #0c0d10;
+  color: #e6e6ea;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.game-select-intro {
+  text-align: center;
+}
+
+.game-select-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  color: #8890a0;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.game-select-intro h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.game-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+  width: 100%;
+  max-width: 46rem;
+}
+
+.game-select-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 1.4rem;
+  border-radius: 8px;
+  border: 1px solid #2c2e35;
+  background: #16171c;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease, background 0.15s ease;
+}
+.game-select-card:hover {
+  transform: translateY(-2px);
+}
+.game-select-card:active {
+  transform: translateY(0);
+}
+.game-select-card h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.game-select-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #a3a8b3;
+  line-height: 1.45;
+}
+.game-select-card-eyebrow {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.game-select-card-meridian:hover {
+  border-color: #c9a24b;
+  background: #1c1911;
+}
+.game-select-card-meridian .game-select-card-eyebrow {
+  color: #c9a24b;
+}
+
+.game-select-card-echo:hover {
+  border-color: #5f97d1;
+  background: #10161c;
+}
+.game-select-card-echo .game-select-card-eyebrow {
+  color: #5f97d1;
+}
+
+@media (max-width: 560px) {
+  .game-select-grid {
+    grid-template-columns: 1fr;
+  }
+}
