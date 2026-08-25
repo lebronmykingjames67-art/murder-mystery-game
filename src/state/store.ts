@@ -4,6 +4,7 @@ import type {
   FloorKind,
   ModalType,
   MoneyPopup,
+  RunHistoryEntry,
   RunStats,
   Screen,
   SettingsState,
@@ -48,6 +49,7 @@ interface GameState {
   bestFloor: number
   stats: RunStats
   settings: SettingsState
+  runHistory: RunHistoryEntry[]
 
   interactPrompt: string | null
   moneyPopups: MoneyPopup[]
@@ -118,7 +120,13 @@ export const useGameStore = create<GameState>((set, get) => {
       bestFloor: s.bestFloor,
       stats: s.stats,
       settings: s.settings,
+      runHistory: s.runHistory,
     })
+  }
+
+  const MAX_HISTORY = 10
+  function addHistoryEntry(entry: RunHistoryEntry) {
+    set((s) => ({ runHistory: [entry, ...s.runHistory].slice(0, MAX_HISTORY) }))
   }
 
   return {
@@ -146,6 +154,7 @@ export const useGameStore = create<GameState>((set, get) => {
     bestFloor: save.bestFloor,
     stats: save.stats,
     settings: save.settings,
+    runHistory: save.runHistory,
 
     interactPrompt: null,
     moneyPopups: [],
@@ -168,6 +177,7 @@ export const useGameStore = create<GameState>((set, get) => {
         bestFloor: s.bestFloor,
         stats: s.stats,
         settings: s.settings,
+        runHistory: s.runHistory,
         maxHealth: stats.maxHealth,
         maxStamina: stats.maxStamina,
         health: stats.maxHealth,
@@ -248,6 +258,7 @@ export const useGameStore = create<GameState>((set, get) => {
           longestRunSeconds: Math.max(s.stats.longestRunSeconds, elapsed),
         },
       })
+      addHistoryEntry({ floorReached: s.floorNumber, payout, died: false, timestamp: Date.now() })
       persist()
     },
 
@@ -272,6 +283,7 @@ export const useGameStore = create<GameState>((set, get) => {
         },
         runMoney: 0,
       })
+      addHistoryEntry({ floorReached: s.floorNumber, payout: lost, died: true, timestamp: Date.now() })
       persist()
     },
 

@@ -118,6 +118,8 @@ class GameManager {
   }
 
   private handleDeath(): void {
+    // A brief slow-motion dip so death reads as a beat, not an instant cut to a menu.
+    this.gameApp?.triggerSlowMo(0.25, 0.7)
     this.runManager.failRun()
   }
 

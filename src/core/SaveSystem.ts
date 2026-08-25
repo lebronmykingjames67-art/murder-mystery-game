@@ -33,6 +33,7 @@ export function defaultSave(): SaveData {
       fov: 82,
       fullscreen: false,
     },
+    runHistory: [],
   }
 }
 
@@ -52,6 +53,7 @@ export function loadSave(): SaveData {
       bestFloor: typeof parsed.bestFloor === 'number' ? parsed.bestFloor : fallback.bestFloor,
       stats: { ...fallback.stats, ...(parsed.stats ?? {}) },
       settings: { ...fallback.settings, ...(parsed.settings ?? {}) },
+      runHistory: Array.isArray(parsed.runHistory) ? parsed.runHistory : fallback.runHistory,
     }
   } catch {
     return fallback

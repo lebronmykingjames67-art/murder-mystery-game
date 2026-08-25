@@ -166,6 +166,16 @@ export interface RunStats {
   longestRunSeconds: number
 }
 
+/** One row of the local leaderboard — a prototype-scale stand-in per the design brief
+ * ("a local leaderboard is acceptable"), architected so a real backend could replace the
+ * storage layer without touching anything that reads runHistory. */
+export interface RunHistoryEntry {
+  floorReached: number
+  payout: number
+  died: boolean
+  timestamp: number
+}
+
 export interface SettingsState {
   masterVolume: number
   musicVolume: number
@@ -184,6 +194,7 @@ export interface SaveData {
   bestFloor: number
   stats: RunStats
   settings: SettingsState
+  runHistory: RunHistoryEntry[]
 }
 
 /** What any scene builder (Lobby, a generated floor) hands back to GameManager. */

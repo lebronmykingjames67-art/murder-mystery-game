@@ -40,6 +40,9 @@ export class GameApp {
   private cinematicTarget = new THREE.Vector3(0, 1.6, 0)
   private frameHook: ((dt: number) => void) | null = null
   private container: HTMLElement
+  private timeScale = 1
+  private targetTimeScale = 1
+  private slowMoRestoreTimer = 0
   private raf = 0
   private sceneDisposables: { dispose: () => void }[] = []
 
@@ -128,7 +131,21 @@ export class GameApp {
 
   private animate(): void {
     this.raf = requestAnimationFrame(this.animate)
-    this.tick(Math.min(0.05, this.clock.getDelta()))
+    const rawDt = Math.min(0.05, this.clock.getDelta())
+
+    if (this.slowMoRestoreTimer > 0) {
+      this.slowMoRestoreTimer -= rawDt
+      if (this.slowMoRestoreTimer <= 0) this.targetTimeScale = 1
+    }
+    this.timeScale += (this.targetTimeScale - this.timeScale) * Math.min(1, rawDt * 10)
+
+    this.tick(rawDt * this.timeScale)
+  }
+
+  /** A brief, self-recovering slow-motion dip — e.g. the beat right after the player dies. */
+  triggerSlowMo(scale: number, holdSeconds: number): void {
+    this.targetTimeScale = scale
+    this.slowMoRestoreTimer = holdSeconds
   }
 
   /**
