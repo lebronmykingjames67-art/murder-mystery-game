@@ -1,8 +1,13 @@
-# The Grand Meridian
+# ONE MORE FLOOR
 
-A noir hotel murder mystery detective game, playable in the browser. Julian Voss, a wealthy hotel investor, has been found dead in Room 412. The hotel is sealed for the night — nobody in, nobody out. Explore all seven floors of The Grand Meridian, question five suspects, collect evidence into your detective's notebook, and make your final accusation before dawn.
+A first-person 3D risk/reward game, playable in the browser. You climb a mysterious building
+one procedurally generated floor at a time. Every floor completed adds to your run's earnings.
+After each floor you choose: **cash out** and bank what you've earned, or **risk it** and ride
+the elevator to the next, harder floor — where dying loses everything from that run.
 
-Built as a 2.5D point-and-click investigation game: a central elevator hub, corridor floor plans, clickable room scenes, and branching "present evidence" dialogue — per the design in the original game doc.
+There is no map, no top-down view, no menu-driven combat. You walk the halls in first person,
+you find the elevator with your own eyes, and the risk/cash-out decision is the only real menu
+in the game.
 
 ## Playing
 
@@ -11,50 +16,74 @@ npm install
 npm run dev
 ```
 
-Then open the printed local URL. Progress autosaves to `localStorage`, so you can close the tab and pick up later from the main menu's "Continue Investigation."
+Then open the printed local URL, click **PLAY**, and click into the window to lock your mouse.
+
+- **WASD** — move
+- **Mouse** — look
+- **Shift** — sprint (drains stamina)
+- **Space** — jump
+- **E** / left click — interact with whatever's under the crosshair
+- **Esc** — pause
 
 ## How it plays
 
-- **Elevator** is the hub — pick a floor. Some floors are locked until you've made enough progress.
-- **Floor plans** show every door on that floor. Most are flavor (knock, nothing there); a handful are real rooms with things to find.
-- **Rooms** have clickable hotspots: physical evidence, notes, and people to talk to.
-- **Dialogue** is topic-based, Ace-Attorney style: ask suspects about topics, and present evidence from your notebook to get reactions, break alibis, and unlock the truth.
-- **Notebook** (top right) has three tabs: **Clues** (with automatic contradiction-flagging once you've collected both sides of a lie), **Suspects** (dossiers that fill in as you learn more), and **Timeline** (the night reconstructed — gaps show as "???" until you find the evidence to fill them).
-- **Accusation** is available any time from the Lobby. Name the killer, the weapon, and the motive. Get it wrong and the detective explains why — no permanent fail state, just go back and keep digging.
+- The **lobby** is a physical 3D space — walk up to the elevator to start a run, or to the
+  upgrade/cosmetic/stats kiosks to spend bank money or check your record.
+- Each **floor** is procedurally generated (a graph of corridors and rooms, always with a valid
+  path from spawn to elevator) and belongs to one of five types that rotate as you go deeper:
+  - **Chase** — something is hunting you; find the elevator, use noise and hiding spots to
+    survive.
+  - **Puzzle** — activate three (or four) panels scattered through the floor in the order a
+    note elsewhere tells you.
+  - **Loot** — a timer, cash scattered everywhere, and the best of it in the riskiest rooms.
+  - **Darkness** — no enemy, just failing lights and bad visibility to navigate through.
+  - **Chaos** — short, unpredictable events (blackouts, speed changes, surprise rewards) on an
+    irregular clock.
+- Reach the elevator, and it locks the run's decision in front of you: **CASH OUT** (bank
+  everything, return to the lobby) or **RISK IT** (ride to the next floor — die and the run's
+  earnings are gone, but bank money and progression are always safe).
 
 ## Tech stack
 
-- React 19 + TypeScript + Vite
-- Zustand for game state, persisted to `localStorage`
-- No game engine, no external art assets — rooms and clue icons are generated with stylized inline SVG/CSS so the whole hotel reads as one consistent illustrated world
-- All content (rooms, hotspots, clues, dialogue trees, timeline, chapter gating, the case solution) is plain data in `src/data/`, evaluated by a small condition/dialogue engine in `src/engine/` — adding a room or a line of dialogue never requires touching UI code
+- React 19 + TypeScript + Vite for the shell/UI
+- **three.js**, driven imperatively (not React-Three-Fiber) — the game loop, collision and
+  rendering all live outside React's render cycle; React only draws the HUD/menus on top of the
+  canvas by reading from a Zustand store the engine updates
+- Zustand for state that the UI needs to react to (health/stamina, run money, bank, upgrades,
+  screen/modal state), persisted to `localStorage` — run money is deliberately never persisted,
+  so a run is always genuinely at risk
+- No external art or audio assets: geometry is built from a handful of shared primitives with
+  canvas-generated speckle textures, and every sound (footsteps, doors, alarms, the ambient
+  music bed) is synthesized at runtime with the WebAudio API
 
 ## Project structure
 
 ```
 src/
-  types/          Core domain types (Clue, Suspect, DialogueTopic, Room, Floor, ...)
-  data/            All game content: hotel.ts (map), clues.ts, suspects.ts,
-                    timeline.ts, chapters.ts, case.ts (solution + rebuttals),
-                    dialogue/ (one file per suspect)
-  engine/          Pure functions: flag/clue condition evaluation, dialogue
-                    resolution, room lock state
-  state/           Zustand store (gameStore.ts) + localStorage persistence
-  components/      UI, organized by feature (elevator, floor, room, dialogue,
-                    notebook, accusation, intro, layout, art)
-  styles/          Hand-written CSS (no framework), one file per feature area
-scripts/
-  audit.ts         `npm run audit:content` — cross-checks every hand-authored
-                    string reference (flags, clue ids, suspect ids, room ids)
-                    against what the data actually defines, so a typo in a
-                    flag name can't silently break chapter gating or a locked
-                    door again
+  core/         GameManager (top-level screen/state orchestration), RunManager, SaveSystem,
+                AudioManager, InputManager, HealthSystem, StaminaSystem, DifficultyManager
+  engine/       GameApp (renderer + main loop), PlayerController, FirstPersonCamera,
+                CollisionWorld, InteractionSystem
+  world/        FloorGenerator (procedural layout), FloorBuilder (layout -> geometry),
+                Lobby, Elevator, Door, LightingRig, Materials, Props, Signage, Pathfinding
+  floors/       FloorType interface + ChaseFloor/PuzzleFloor/LootFloor/DarknessFloor/
+                ChaosFloor, each owning its own objective and content placement
+  ai/           EnemyAI (patrol/investigate/search/chase/lost state machine)
+  systems/      UpgradeSystem, CosmeticSystem (data + effect definitions)
+  state/        The Zustand store
+  ui/           React HUD and menu components
 ```
 
-## The case
+## Adding a new floor type
 
-Five suspects, one of them lying about more than the others. The solution (killer, weapon, motive) lives entirely in `src/data/case.ts` — everything else in the dialogue and clue data was written to support that one solution, so if you want to change who did it, that's the file to start from (though dialogue reactions are written suspect-specific, so swapping the killer isn't just a one-line change).
+Implement the `FloorType` interface (`src/floors/FloorType.ts`) — what rooms to request from
+the generator, what to place in them, and what happens each frame — and register it in
+`src/floors/registry.ts`. Nothing else needs to change; `FloorManager` and the risk/reward loop
+are entirely floor-type-agnostic.
 
 ## What's not built
 
-The original design doc's "optional fun extras" — a randomized New-Game+ killer mode, achievements beyond the two shown on the ending screen, a headline ticker — were left out to keep the core mystery (map, cast, evidence, dialogue, notebook, accusation) complete and polished rather than spreading thinner across stretch goals. The stairwell is implemented as a real room with a clue rather than a full secondary traversal route between floors.
+Multiplayer, a minimap/overlay map (deliberately — the brief is no-map-as-navigation), and the
+"future floor types" called out in the design brief (Flooded, Security, Laser, Zero-Gravity,
+Mirror, Speed, Boss, Giant Warehouse) are left for later; the architecture is built so each is
+just one more file implementing `FloorType`.

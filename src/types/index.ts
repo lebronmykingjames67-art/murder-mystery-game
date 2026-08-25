@@ -1,232 +1,208 @@
-// Core domain types for The Grand Meridian.
-// Content (rooms, clues, dialogue, suspects) is authored as data against these
-// shapes, so new rooms/suspects/lines can be added without touching engine code.
+// Core domain types shared across the engine, world generation, floor logic and UI.
+// Keeping these in one place means every system agrees on the same shapes.
 
-export type FlagId = string;
-export type ClueId = string;
-export type SuspectId = string;
-export type RoomId = string;
-export type FloorId = string;
+export type Screen =
+  | 'boot'
+  | 'menu'
+  | 'lobby'
+  | 'run'
+  | 'floor-complete'
+  | 'risk-decision'
+  | 'run-failed'
+  | 'cashed-out'
 
-// ---------------------------------------------------------------------------
-// Clues / evidence
-// ---------------------------------------------------------------------------
+export type ModalType = 'pause' | 'upgrades' | 'cosmetics' | 'settings' | 'stats' | null
 
-export type ClueCategory = 'physical' | 'testimonial';
+export type FloorKind = 'chase' | 'puzzle' | 'loot' | 'darkness' | 'chaos'
 
-export interface Clue {
-  id: ClueId;
-  name: string;
-  category: ClueCategory;
-  icon: string; // key into the clue icon registry (art/ClueIcon.tsx)
-  shortDescription: string; // one-liner shown on pickup toast + notebook grid
-  detail: string; // full notebook entry text
-  foundIn: string; // human-readable location, for flavor ("Room 412, victim's desk")
-  relatedSuspects?: SuspectId[];
+export const FLOOR_KIND_ORDER: FloorKind[] = ['chase', 'puzzle', 'loot', 'darkness', 'chaos']
+
+export type Direction = 'N' | 'S' | 'E' | 'W'
+
+export const DIRECTIONS: Direction[] = ['N', 'S', 'E', 'W']
+
+export const DIR_VECTOR: Record<Direction, { dx: number; dz: number }> = {
+  N: { dx: 0, dz: -1 },
+  S: { dx: 0, dz: 1 },
+  E: { dx: 1, dz: 0 },
+  W: { dx: -1, dz: 0 },
 }
 
-export interface Contradiction {
-  id: string;
-  clueIds: [ClueId, ClueId];
-  title: string;
-  explanation: string;
-  unlocksFlag?: FlagId; // set automatically once both clues are collected
+export const OPPOSITE_DIR: Record<Direction, Direction> = {
+  N: 'S',
+  S: 'N',
+  E: 'W',
+  W: 'E',
 }
 
-// ---------------------------------------------------------------------------
-// Suspects & dossiers
-// ---------------------------------------------------------------------------
+export type CellSizeClass = 'hallway' | 'room' | 'macro-room'
 
-export interface DossierField {
-  id: string;
-  label: string;
-  text: string;
-  requiresFlags?: FlagId[];
+/** What a room is used for — drives content placement and prop dressing, not geometry rules. */
+export type RoomPurpose =
+  | 'corridor'
+  | 'spawn'
+  | 'elevator'
+  | 'generic'
+  | 'storage'
+  | 'office'
+  | 'utility'
+  | 'key'
+  | 'loot-safe'
+  | 'loot-risky'
+  | 'switch-a'
+  | 'switch-b'
+  | 'switch-c'
+  | 'switch-d'
+  | 'clue'
+  | 'hazard'
+  | 'event-anchor'
+  | 'hiding-spot'
+
+export interface FloorCell {
+  x: number
+  z: number
+  sizeClass: CellSizeClass
+  connections: Set<Direction>
+  purpose: RoomPurpose
+  macroId?: string
+  macroAnchor?: boolean
 }
 
-export interface Suspect {
-  id: SuspectId;
-  name: string;
-  alias?: string;
-  role: string;
-  colorTag: string; // hex accent used for portrait/frame theming
-  initials: string;
-  bio: string;
-  isKiller: boolean;
-  dossierFields: DossierField[];
+export interface SpecialRoom {
+  purpose: RoomPurpose
+  cell: FloorCell
+  /** World-space center of this room (accounts for macro-room spans). */
+  center: { x: number; z: number }
 }
 
-// ---------------------------------------------------------------------------
-// Dialogue
-// ---------------------------------------------------------------------------
-
-export type Speaker = 'suspect' | 'detective' | 'narration';
-
-export interface DialogueLine {
-  speaker: Speaker;
-  text: string;
+export interface FloorLayout {
+  floorNumber: number
+  kind: FloorKind
+  seed: number
+  cells: Map<string, FloorCell>
+  spawnCell: FloorCell
+  elevatorCell: FloorCell
+  specialRooms: SpecialRoom[]
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
 }
 
-export interface DialogueVariant {
-  id: string;
-  requiresFlags?: FlagId[];
-  forbidsFlags?: FlagId[];
-  requiresClues?: ClueId[];
-  lines: DialogueLine[];
-  setsFlags?: FlagId[];
-  addsClues?: ClueId[];
+export interface DifficultyConfig {
+  floorNumber: number
+  label: string
+  gridTargetCells: number
+  mainPathLength: number
+  branchCount: number
+  rewardBase: number
+  rewardVariance: number
+  enemySpeed: number
+  enemyDetectionRadius: number
+  enemyFovDegrees: number
+  enemyHearingRadius: number
+  switchCount: number
+  lootTimerSeconds: number
+  eventIntervalSeconds: number
+  darknessSeverity: number
 }
 
-export interface DialogueTopic {
-  id: string;
-  label: string;
-  requiresFlags?: FlagId[];
-  forbidsFlags?: FlagId[];
-  requiresClues?: ClueId[];
-  variants: DialogueVariant[]; // first variant whose conditions pass is used
+export type InteractableKind =
+  | 'door'
+  | 'elevator'
+  | 'switch'
+  | 'loot'
+  | 'keycard'
+  | 'note'
+  | 'hiding-spot'
+  | 'station'
+  | 'lever'
+
+export interface InteractionContext {
+  playerPosition: import('three').Vector3
 }
 
-export interface EvidenceEntry {
-  clueId: ClueId;
-  variants: DialogueVariant[];
+export interface Interactable {
+  id: string
+  kind: InteractableKind
+  object: import('three').Object3D
+  promptText: string
+  /** Max distance (meters) at which this can be triggered. */
+  range: number
+  enabled: boolean
+  onInteract: (ctx: InteractionContext) => void
+  /** Optional: called every frame this object is the focused target (for hover feedback). */
+  onFocus?: () => void
+  onBlur?: () => void
 }
 
-export interface GreetingVariant {
-  requiresFlags?: FlagId[];
-  forbidsFlags?: FlagId[];
-  lines: DialogueLine[];
-  setsFlags?: FlagId[];
+export type EnemyState = 'idle' | 'patrol' | 'investigate' | 'search' | 'chase' | 'lost'
+
+export interface UpgradeDef {
+  id: 'stamina' | 'health' | 'luck' | 'speed' | 'time'
+  name: string
+  description: string
+  maxLevel: number
+  baseCost: number
+  costGrowth: number
 }
 
-export interface SuspectDialogue {
-  suspectId: SuspectId;
-  greetings: GreetingVariant[]; // first match wins; last should be unconditional fallback
-  topics: DialogueTopic[];
-  evidence: EvidenceEntry[];
-  defaultEvidenceReaction: DialogueLine[]; // used when a presented clue has no specific entry
-  farewell: string;
-  unavailable?: {
-    // shown instead of a conversation if requiresFlags below aren't met (e.g. not discovered yet)
-    requiresFlags?: FlagId[];
-    text: string;
-  };
+export interface CosmeticDef {
+  id: string
+  name: string
+  slot: 'suit' | 'visor' | 'trim'
+  color: string
+  cost: number
 }
 
-// ---------------------------------------------------------------------------
-// Rooms / floors / hotspots
-// ---------------------------------------------------------------------------
-
-export type HotspotKind = 'clue' | 'npc' | 'flavor' | 'exit' | 'note';
-
-export interface Hotspot {
-  id: string;
-  label: string;
-  x: number; // percentage 0-100 within the room scene
-  y: number;
-  w: number;
-  h: number;
-  kind: HotspotKind;
-  clueId?: ClueId; // kind: 'clue'
-  npcId?: SuspectId; // kind: 'npc'
-  flavorText?: string; // kind: 'flavor' | 'note'
-  requiresFlags?: FlagId[]; // hotspot hidden until satisfied
-  hideAfterFlags?: FlagId[]; // hotspot hidden once satisfied (e.g. clue already taken)
-  setsFlags?: FlagId[]; // granted on interaction (in addition to clue pickup)
+export interface RunStats {
+  totalRuns: number
+  totalDeaths: number
+  highestFloor: number
+  totalMoneyEarned: number
+  totalMoneyCashedOut: number
+  floorsCompleted: number
+  bestRunPayout: number
+  longestRunSeconds: number
 }
 
-export type RoomKind = 'scene' | 'flavor' | 'locked';
-export type RoomArtKey =
-  | 'lobby-desk'
-  | 'lobby-lounge'
-  | 'lobby-entrance'
-  | 'security-office'
-  | 'bar'
-  | 'restaurant'
-  | 'function-room'
-  | 'guestroom-crime'
-  | 'guestroom-neighbor'
-  | 'guestroom-plain'
-  | 'guestroom-hidden'
-  | 'vending-nook'
-  | 'laundry'
-  | 'housekeeping'
-  | 'stairwell'
-  | 'maintenance'
-  | 'rooftop';
-
-export interface Room {
-  id: RoomId;
-  floorId: FloorId;
-  doorNumber: string; // "412" or "Front Desk"
-  name: string;
-  kind: RoomKind;
-  unlockFlag?: FlagId; // when kind === 'locked', becomes `unlockedKind` once set
-  unlockedKind?: RoomKind;
-  lockedReason?: string;
-  flavorText?: string; // kind: 'flavor'
-  description?: string; // kind: 'scene', shown on entry
-  art?: RoomArtKey;
-  hotspots?: Hotspot[];
+export interface SettingsState {
+  masterVolume: number
+  musicVolume: number
+  sfxVolume: number
+  mouseSensitivity: number
+  fov: number
+  fullscreen: boolean
 }
 
-export interface Floor {
-  id: FloorId;
-  displayNumber: string; // 'Lobby' | 'M' | '2' ... '5' | 'Roof'
-  name: string;
-  subtitle?: string;
-  rooms: Room[];
-  locked?: { reasonText: string; unlockFlag: FlagId };
-  ambientChats?: string[]; // elevator small-talk lines usable en route to this floor
+export interface SaveData {
+  version: number
+  bankMoney: number
+  upgradeLevels: Record<UpgradeDef['id'], number>
+  ownedCosmetics: string[]
+  equippedCosmetics: Partial<Record<CosmeticDef['slot'], string>>
+  bestFloor: number
+  stats: RunStats
+  settings: SettingsState
 }
 
-// ---------------------------------------------------------------------------
-// Timeline
-// ---------------------------------------------------------------------------
-
-export interface TimelineEntry {
-  id: string;
-  time: string; // "7:00 PM"
-  sortKey: number; // minutes since midnight, for ordering
-  title: string;
-  description: string;
-  requiresFlags?: FlagId[]; // empty/undefined = known from the start
+/** What any scene builder (Lobby, a generated floor) hands back to GameManager. */
+export interface SceneHandle {
+  spawnX: number
+  spawnZ: number
+  spawnYaw: number
+  update: (dt: number, playerPos: import('three').Vector3) => void
 }
 
-// ---------------------------------------------------------------------------
-// Chapters
-// ---------------------------------------------------------------------------
-
-export interface Chapter {
-  number: number;
-  title: string;
-  goalText: string;
-  advanceWhenFlags?: FlagId[]; // all required to advance INTO this chapter; chapter 1 has none
+export interface MoneyPopup {
+  id: number
+  amount: number
+  x: number
+  y: number
 }
 
-// ---------------------------------------------------------------------------
-// Case solution & accusation
-// ---------------------------------------------------------------------------
-
-export interface AccusationOption {
-  id: string;
-  label: string;
-}
-
-export interface CaseSolution {
-  killerId: SuspectId;
-  weaponId: string;
-  motiveId: string;
-}
-
-export interface AccusationChoice {
-  suspectId: SuspectId;
-  weaponId: string;
-  motiveId: string;
-}
-
-export interface Rebuttal {
-  id: string;
-  condition: (accused: AccusationChoice, solution: CaseSolution) => boolean;
-  priority: number; // higher checked first
-  lines: string[];
+export interface Toast {
+  id: number
+  text: string
+  tone: 'info' | 'warning' | 'danger' | 'success'
 }
