@@ -1,14 +1,1313 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="The Grand Meridian — a noir hotel murder mystery detective game." />
-    <title>The Grand Meridian</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Code</title>
+<meta name="description" content="Daily discipline tracker: three habits, a weekly scorecard, the rules, and a countdown to the lock date.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="The Code">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" sizes="192x192" href="icon-192.png">
+<style>
+  :root{
+    --bg:#0a0a0b;
+    --surface:#17171a;
+    --surface-2:#1e1e22;
+    --border:#2a2a2f;
+    --border-strong:#45454c;
+    --text:#f3f3f1;
+    --text-dim:#9a9a9f;
+    --text-faint:#6b6b70;
+    --accent:#e3a53a;
+    --accent-dim:#8a692c;
+    --tap-min-height:76px;
+    --tabbar-height:64px;
+    --safe-b:env(safe-area-inset-bottom, 0px);
+    --safe-t:env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    height:100%;
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--text);
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+    overscroll-behavior-y:none;
+  }
+  button{
+    font-family:inherit;
+    color:inherit;
+    -webkit-tap-highlight-color:transparent;
+  }
+  input{
+    font-family:inherit;
+  }
+  #app{
+    height:100dvh;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  #screens{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .screen{
+    padding:calc(20px + var(--safe-t)) 18px calc(28px + var(--tabbar-height) + var(--safe-b));
+    max-width:640px;
+    margin:0 auto;
+  }
+  .screen[hidden]{display:none;}
+
+  /* ---------- Tab bar ---------- */
+  #tabbar{
+    display:flex;
+    border-top:1px solid var(--border);
+    background:var(--surface);
+    flex-shrink:0;
+    padding-bottom:var(--safe-b);
+  }
+  .tab{
+    flex:1;
+    background:none;
+    border:none;
+    padding:14px 4px 12px;
+    min-height:var(--tabbar-height);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:0.8rem;
+    font-weight:600;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    border-top:2px solid transparent;
+    transition:color 120ms;
+  }
+  .tab[aria-current="page"]{
+    color:var(--text);
+    border-top-color:var(--text);
+  }
+  .tab:active{color:var(--text);}
+
+  /* ---------- Shared text elements ---------- */
+  h2.section-title{
+    font-size:0.78rem;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    margin:0 0 10px;
+  }
+  .muted{color:var(--text-dim);}
+
+  /* ---------- Today screen ---------- */
+  .date-line{
+    font-size:0.95rem;
+    font-weight:600;
+    letter-spacing:0.02em;
+    color:var(--text-dim);
+    margin:0 0 6px;
+  }
+  .would-he{
+    font-size:2.35rem;
+    font-weight:800;
+    line-height:1.08;
+    margin:0 0 22px;
+    letter-spacing:-0.01em;
+  }
+  .tasks-banner{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:14px 16px;
+    margin:0 0 20px;
+  }
+  .tasks-banner-title{
+    font-size:0.72rem;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    margin:0 0 8px;
+  }
+  .tasks-banner ol{
+    margin:0;
+    padding-left:1.15em;
+    font-size:0.92rem;
+    color:var(--text-dim);
+    line-height:1.55;
+  }
+  .tasks-banner li{margin:0;}
+  .tasks-banner .week-note{
+    margin:8px 0 0;
+    padding-top:8px;
+    border-top:1px solid var(--border);
+    font-size:0.85rem;
+    font-style:italic;
+    color:var(--text-faint);
+  }
+
+  .habit-list{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .habit-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    width:100%;
+    text-align:left;
+    min-height:var(--tap-min-height);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:14px 16px;
+  }
+  .habit-row:active{background:var(--surface-2);}
+  .mark{
+    flex-shrink:0;
+    width:40px;
+    height:40px;
+    border:2px solid var(--border-strong);
+    border-radius:4px;
+    position:relative;
+    background:transparent;
+  }
+  .mark.min{border-color:var(--accent-dim);}
+  .mark.min::after{
+    content:"";
+    position:absolute;
+    left:0;right:0;bottom:0;
+    height:50%;
+    background:var(--accent);
+    opacity:0.65;
+  }
+  .mark.full{
+    background:var(--accent);
+    border-color:var(--accent);
+  }
+  .habit-main{flex:1;min-width:0;}
+  .habit-top-line{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .habit-label{
+    font-size:1.12rem;
+    font-weight:700;
+  }
+  .habit-state{
+    font-size:0.78rem;
+    font-weight:700;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    white-space:nowrap;
+  }
+  .habit-row[data-state="min"] .habit-state{color:var(--accent-dim);}
+  .habit-row[data-state="full"] .habit-state{color:var(--accent);}
+  .habit-target{
+    margin-top:4px;
+    font-size:0.86rem;
+    color:var(--text-dim);
+    line-height:1.4;
+  }
+  .habit-cadets{
+    margin-top:4px;
+    font-size:0.86rem;
+    color:var(--text-dim);
+    line-height:1.4;
+  }
+
+  details.schedule-block{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:6px;
+    margin-bottom:22px;
+  }
+  details.schedule-block summary{
+    list-style:none;
+    padding:16px;
+    min-height:52px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-size:0.92rem;
+    font-weight:700;
+    color:var(--text-dim);
+    cursor:pointer;
+  }
+  details.schedule-block summary::-webkit-details-marker{display:none;}
+  details.schedule-block summary::after{
+    content:"+";
+    font-size:1.2rem;
+    color:var(--text-faint);
+    font-weight:400;
+  }
+  details.schedule-block[open] summary::after{content:"–";}
+  .schedule-items{
+    padding:0 16px 16px;
+    border-top:1px solid var(--border);
+  }
+  .schedule-row{
+    display:flex;
+    gap:14px;
+    padding:9px 0;
+    font-size:0.86rem;
+    border-bottom:1px solid var(--border);
+  }
+  .schedule-row:last-child{border-bottom:none;}
+  .schedule-time{
+    flex:0 0 84px;
+    color:var(--text-faint);
+    font-weight:600;
+  }
+  .schedule-desc{color:var(--text-dim);}
+
+  .streak-block{
+    text-align:center;
+    padding:18px 0 4px;
+  }
+  .streak-number{
+    font-size:3.4rem;
+    font-weight:800;
+    color:var(--accent);
+    line-height:1;
+  }
+  .streak-label{
+    margin-top:4px;
+    font-size:0.8rem;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+  }
+
+  /* ---------- Week screen ---------- */
+  .week-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .week-nav-btn{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:6px;
+    min-width:56px;
+    min-height:52px;
+    font-size:1.4rem;
+    color:var(--text);
+  }
+  .week-nav-btn:disabled{color:var(--text-faint);opacity:0.4;}
+  .week-range{
+    font-size:1rem;
+    font-weight:700;
+    color:var(--text);
+    text-align:center;
+  }
+  .week-grid{
+    display:grid;
+    grid-template-columns:64px repeat(7,1fr);
+    gap:6px;
+    align-items:center;
+    margin-bottom:18px;
+  }
+  .week-grid .col-head{
+    font-size:0.72rem;
+    font-weight:700;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    text-align:center;
+    padding-bottom:6px;
+  }
+  .week-grid .col-head.is-today{color:var(--accent);}
+  .week-grid .row-label{
+    font-size:0.82rem;
+    font-weight:700;
+    color:var(--text-dim);
+  }
+  .week-grid .cell{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:4px 0;
+    border-radius:4px;
+  }
+  .week-grid .cell.is-today{background:rgba(227,165,58,0.08);}
+  .week-mark{
+    width:22px;
+    height:22px;
+    border:2px solid var(--border-strong);
+    border-radius:3px;
+    position:relative;
+  }
+  .week-mark.min{border-color:var(--accent-dim);}
+  .week-mark.min::after{
+    content:"";
+    position:absolute;left:0;right:0;bottom:0;height:50%;
+    background:var(--accent);opacity:0.65;
+  }
+  .week-mark.full{background:var(--accent);border-color:var(--accent);}
+
+  .week-stats{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:24px;
+    padding-bottom:20px;
+    border-bottom:1px solid var(--border);
+  }
+  .week-score-num{font-size:2.1rem;font-weight:800;}
+  .week-score-label{font-size:0.78rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
+  .best-streak-num{font-size:1.5rem;font-weight:800;color:var(--accent);text-align:right;}
+  .best-streak-label{font-size:0.78rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;text-align:right;}
+
+  .review-box{
+    background:var(--surface);
+    border:1px solid var(--border-strong);
+    border-radius:6px;
+    padding:18px 16px;
+    margin-bottom:10px;
+  }
+  .review-box h2.section-title{color:var(--text);}
+  .field-label{
+    display:block;
+    font-size:0.76rem;
+    font-weight:700;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    margin:14px 0 6px;
+  }
+  .field-label:first-of-type{margin-top:2px;}
+  .review-box input[type="text"]{
+    display:block;
+    width:100%;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:5px;
+    color:var(--text);
+    font-size:0.98rem;
+    padding:12px 12px;
+    min-height:46px;
+  }
+  .review-box input[type="text"]::placeholder{color:var(--text-faint);}
+  .review-save{
+    margin-top:16px;
+    width:100%;
+    min-height:50px;
+    background:var(--surface-2);
+    border:1px solid var(--border-strong);
+    border-radius:5px;
+    font-weight:700;
+    letter-spacing:0.03em;
+    color:var(--text);
+  }
+  .review-save:active{background:var(--border);}
+  .review-saved-note{
+    margin-top:10px;
+    font-size:0.82rem;
+    color:var(--accent);
+    text-align:center;
+    opacity:0;
+    transition:opacity 150ms;
+  }
+  .review-saved-note.show{opacity:1;}
+
+  /* ---------- Code screen ---------- */
+  .name-field{margin-bottom:28px;}
+  .name-field label{
+    display:block;
+    font-size:0.76rem;
+    font-weight:700;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    margin-bottom:8px;
+  }
+  .name-field input{
+    width:100%;
+    background:transparent;
+    border:none;
+    border-bottom:2px solid var(--border-strong);
+    color:var(--text);
+    font-size:1.4rem;
+    font-weight:700;
+    padding:6px 2px 10px;
+  }
+  .name-field input::placeholder{color:var(--text-faint);font-weight:400;}
+  .name-field input:focus{outline:none;border-bottom-color:var(--accent);}
+
+  .code-section{margin-bottom:28px;}
+  .code-section ul,.code-section ol{
+    margin:0;
+    padding-left:1.25em;
+    font-size:1rem;
+    line-height:1.65;
+    color:var(--text);
+  }
+  .code-section li{margin-bottom:10px;}
+  .code-section li:last-child{margin-bottom:0;}
+
+  .week3-note{
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-size:1rem;
+    line-height:1.65;
+    color:var(--text-dim);
+  }
+  .week3-note strong{color:var(--text);}
+
+  /* ---------- Lock screen ---------- */
+  .lock-screen{
+    text-align:center;
+    padding-top:6vh;
+  }
+  .lock-count{
+    font-size:5rem;
+    font-weight:800;
+    line-height:1;
+    color:var(--text);
+  }
+  .lock-count-label{
+    font-size:0.85rem;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+    margin-top:8px;
+  }
+  .lock-target-date{
+    margin-top:6px;
+    font-size:0.92rem;
+    color:var(--text-dim);
+  }
+  .lock-line{
+    margin-top:26px;
+    font-size:1.05rem;
+    font-weight:600;
+    line-height:1.5;
+    color:var(--text);
+  }
+  .lock-line.secondary{
+    margin-top:10px;
+    font-weight:600;
+  }
+  .lock-warning{
+    margin-top:22px;
+    font-size:0.85rem;
+    color:var(--text-faint);
+    line-height:1.55;
+  }
+  .lock-unlocked{
+    font-size:1.3rem;
+    font-weight:700;
+    line-height:1.55;
+    color:var(--text);
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="screens">
+
+    <section class="screen" id="screen-today" data-screen="today">
+      <div class="date-line" id="todayDateLine"></div>
+      <div class="would-he">Would he?</div>
+
+      <div class="tasks-banner" id="tasksBanner" hidden>
+        <div class="tasks-banner-title">This week's three</div>
+        <ol id="tasksBannerList"></ol>
+        <div class="week-note" id="tasksBannerNote" hidden></div>
+      </div>
+
+      <div class="habit-list" id="habitList"></div>
+
+      <details class="schedule-block" id="scheduleBlock">
+        <summary id="scheduleSummary">Today's schedule</summary>
+        <div class="schedule-items" id="scheduleItems"></div>
+      </details>
+
+      <div class="streak-block">
+        <div class="streak-number" id="streakNumber">0</div>
+        <div class="streak-label">day streak</div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-week" data-screen="week" hidden>
+      <div class="week-nav">
+        <button class="week-nav-btn" id="weekPrev" aria-label="Previous week">‹</button>
+        <div class="week-range" id="weekRange"></div>
+        <button class="week-nav-btn" id="weekNext" aria-label="Next week">›</button>
+      </div>
+
+      <div class="week-grid" id="weekGrid"></div>
+
+      <div class="week-stats">
+        <div>
+          <div class="week-score-num" id="weekScore">0 / 21</div>
+          <div class="week-score-label">Week score</div>
+        </div>
+        <div>
+          <div class="best-streak-num" id="bestStreakNum">0</div>
+          <div class="best-streak-label">Best streak</div>
+        </div>
+      </div>
+
+      <div class="review-box" id="reviewBox" hidden>
+        <h2 class="section-title">Sunday review</h2>
+        <label class="field-label" for="reviewNote">One line on the week</label>
+        <input type="text" id="reviewNote" placeholder="How did it go">
+        <label class="field-label" for="reviewTask1">Next week's three biggest tasks</label>
+        <input type="text" id="reviewTask1" placeholder="Task 1">
+        <input type="text" id="reviewTask2" placeholder="Task 2" style="margin-top:8px;">
+        <input type="text" id="reviewTask3" placeholder="Task 3" style="margin-top:8px;">
+        <button class="review-save" id="reviewSave">Save</button>
+        <div class="review-saved-note" id="reviewSavedNote">Saved</div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-code" data-screen="code" hidden>
+      <div class="name-field">
+        <label for="nameInput">Name</label>
+        <input type="text" id="nameInput" placeholder="one word" autocomplete="off" autocapitalize="words" spellcheck="false">
+      </div>
+
+      <div class="code-section">
+        <h2 class="section-title">Who he is</h2>
+        <ul>
+          <li>He gets home at 4, eats, sits down at 4:30, and starts without arguing about it.</li>
+          <li>He doesn't check his phone during a block. It's in another room.</li>
+          <li>He finishes the rep count even when the shots aren't falling.</li>
+          <li>He picked one business and he's not switching until the lock date.</li>
+          <li>He does the 10-minute version on bad days. He doesn't take zeros.</li>
+          <li>He's off at 9 and asleep by 10, because he's up at 6.</li>
+        </ul>
+      </div>
+
+      <div class="code-section">
+        <h2 class="section-title">The four rules</h2>
+        <ol>
+          <li>Blocks start on time. Phone in another room.</li>
+          <li>Rep counts get finished, not felt out.</li>
+          <li>One business until the lock date. No switching.</li>
+          <li>9pm he clocks out. 10pm lights off.</li>
+        </ol>
+      </div>
+
+      <div class="week3-note">
+        <p><strong>Week 3 is the test.</strong> Weeks 1 and 2 feel good because it's new. Week 3 is where people drop it. That's not a sign it isn't working.</p>
+      </div>
+    </section>
+
+    <section class="screen lock-screen" id="screen-lock" data-screen="lock" hidden>
+      <div id="lockActive">
+        <div class="lock-count" id="lockCount">0</div>
+        <div class="lock-count-label">days remaining</div>
+        <div class="lock-target-date">until Monday 26 October 2026</div>
+        <div class="lock-line">Accessibility auditing. WCAG 2.2 / AS EN 301 549.</div>
+        <div class="lock-line secondary">Sell audit + fix the top ten, not audits alone.</div>
+        <div class="lock-warning">No switching before this date. Not to a better idea, not to an easier one, not to one you saw a video about.</div>
+      </div>
+      <div id="lockUnlocked" hidden>
+        <div class="lock-unlocked">Lock's off. Decide properly: keep going, or change with a reason you can say out loud.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav id="tabbar">
+    <button class="tab" data-target="today" aria-current="page">Today</button>
+    <button class="tab" data-target="week">Week</button>
+    <button class="tab" data-target="code">Code</button>
+    <button class="tab" data-target="lock">Lock</button>
+  </nav>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= Constants ================= */
+
+  var STORAGE_KEY = "code.state.v1";
+  var TZ = "Australia/Sydney";
+  var ROLLOVER_HOUR = 3;
+  var LOCK_DATE_KEY = "2026-10-26"; // Monday 26 October 2026
+
+  var HABITS = [
+    { key:"school",   label:"School",   target:"45 min, hardest subject, closed book" },
+    { key:"business", label:"Business", target:"45 min, one task that produces a thing" },
+    { key:"ball",     label:"Ball",     target:"150 makes + 10 min handles" }
+  ];
+  var CADETS_TEXT = "Cadets — 10-minute versions or nothing";
+  var CYCLE = { none:"full", full:"min", min:"none" };
+  var STATE_LABEL = { none:"Not done", min:"Minimum", full:"Full" };
+
+  var WEEKDAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var WEEKDAY_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; // Monday-first, for the week grid header
+  var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  var SCHEDULE = {
+    weekday: {
+      title: "Tuesday – Friday",
+      items: [
+        ["4:00", "Home. Eat. Phone. Decompress."],
+        ["4:30–5:15", "School block"],
+        ["5:15–5:30", "Break"],
+        ["5:30–6:15", "Business block"],
+        ["6:15–7:00", "Dinner"],
+        ["7:00–8:15", "Ball. 150 makes + 10 min handles"],
+        ["9:00", "Off switch"],
+        ["10:00", "Lights off"]
+      ]
+    },
+    monday: {
+      title: "Monday",
+      items: [
+        ["4:30–5:15", "School block"],
+        ["", "Then cadets"],
+        ["", "10-minute versions after, or nothing"]
+      ]
+    },
+    saturday: {
+      title: "Saturday",
+      items: [
+        ["Morning", "2 hour business block, hardest task of the week"],
+        ["", "Game or open gym"]
+      ]
+    },
+    sunday: {
+      title: "Sunday",
+      items: [
+        ["", "Full rest"],
+        ["Night", "20 min review"]
+      ]
+    }
+  };
+
+  /* ================= Date / time helpers ================= */
+  // All "day key" values are "YYYY-MM-DD" strings that plain string-compare
+  // in chronological order. They are computed from Sydney wall-clock time
+  // with a 3am rollover: anything before 3am Sydney counts as the previous day.
+
+  function pad2(n){ return (n < 10 ? "0" : "") + n; }
+
+  function sydneyParts(date){
+    var fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: TZ,
+      year:"numeric", month:"2-digit", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit",
+      hourCycle:"h23"
+    });
+    var parts = fmt.formatToParts(date);
+    var map = {};
+    for (var i=0;i<parts.length;i++){ map[parts[i].type] = parts[i].value; }
+    return {
+      y:+map.year, mo:+map.month, d:+map.day,
+      h:+map.hour, mi:+map.minute, s:+map.second
+    };
+  }
+
+  // Wall-clock Sydney time, tagged as a UTC timestamp so we can do plain
+  // calendar arithmetic on it without the runtime re-applying a timezone.
+  function wallClockMs(p){
+    return Date.UTC(p.y, p.mo-1, p.d, p.h, p.mi, p.s);
+  }
+
+  function keyFromMs(ms){
+    var d = new Date(ms);
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth()+1) + "-" + pad2(d.getUTCDate());
+  }
+
+  // The app's "day" for habit-tracking purposes: rolls over at 3am Sydney,
+  // not midnight, so ticking something at 12:30am still counts for the day
+  // that just finished.
+  function appDateKey(date){
+    date = date || new Date();
+    var p = sydneyParts(date);
+    var ms = wallClockMs(p) - ROLLOVER_HOUR*60*60*1000;
+    return keyFromMs(ms);
+  }
+
+  function dowOfKey(key){
+    var parts = key.split("-");
+    var y = +parts[0], mo = +parts[1], d = +parts[2];
+    return new Date(Date.UTC(y, mo-1, d)).getUTCDay(); // 0=Sun..6=Sat
+  }
+
+  function addDaysToKey(key, n){
+    var parts = key.split("-");
+    var y = +parts[0], mo = +parts[1], d = +parts[2];
+    var dt = new Date(Date.UTC(y, mo-1, d));
+    dt.setUTCDate(dt.getUTCDate() + n);
+    return keyFromMs(dt.getTime());
+  }
+
+  function daysBetweenKeys(fromKey, toKey){
+    var f = Date.UTC.apply(null, fromKey.split("-").map(Number).map(function(v,i){return i===1?v-1:v;}));
+    var t = Date.UTC.apply(null, toKey.split("-").map(Number).map(function(v,i){return i===1?v-1:v;}));
+    return Math.round((t - f) / 86400000);
+  }
+
+  function mondayOfWeekKey(key){
+    var dow = dowOfKey(key); // 0=Sun..6=Sat
+    var diff = (dow + 6) % 7; // days since Monday
+    return addDaysToKey(key, -diff);
+  }
+
+  function isoWeekKey(key){
+    var parts = key.split("-");
+    var y = +parts[0], mo = +parts[1], d = +parts[2];
+    var date = new Date(Date.UTC(y, mo-1, d));
+    var dayNum = (date.getUTCDay() + 6) % 7 + 1; // Mon=1..Sun=7
+    date.setUTCDate(date.getUTCDate() + 4 - dayNum); // nearest Thursday
+    var yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    var weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+    return date.getUTCFullYear() + "-W" + pad2(weekNo);
+  }
+
+  function formatLongDate(key){
+    var parts = key.split("-");
+    var d = +parts[2], mo = +parts[1];
+    var dow = dowOfKey(key);
+    return WEEKDAY_NAMES[dow] + ", " + d + " " + MONTH_NAMES[mo-1];
+  }
+
+  function formatWeekRange(mondayKey){
+    var sundayKey = addDaysToKey(mondayKey, 6);
+    var mp = mondayKey.split("-").map(Number);
+    var sp = sundayKey.split("-").map(Number);
+    var left = mp[2] + " " + MONTH_SHORT[mp[1]-1];
+    var right = sp[2] + " " + MONTH_SHORT[sp[1]-1];
+    if (mp[1] === sp[1]) { left = String(mp[2]); }
+    return left + " – " + right;
+  }
+
+  function scheduleForKey(key){
+    var dow = dowOfKey(key);
+    if (dow === 1) return SCHEDULE.monday;
+    if (dow === 6) return SCHEDULE.saturday;
+    if (dow === 0) return SCHEDULE.sunday;
+    return SCHEDULE.weekday;
+  }
+
+  /* ================= State ================= */
+
+  function defaultState(){
+    return { version:1, name:"", days:{}, weeks:{}, bestStreak:0 };
+  }
+
+  function loadState(){
+    var d = defaultState();
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return d;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return d;
+      return {
+        version: 1,
+        name: typeof parsed.name === "string" ? parsed.name : d.name,
+        days: (parsed.days && typeof parsed.days === "object") ? parsed.days : d.days,
+        weeks: (parsed.weeks && typeof parsed.weeks === "object") ? parsed.weeks : d.weeks,
+        bestStreak: typeof parsed.bestStreak === "number" && isFinite(parsed.bestStreak) ? parsed.bestStreak : d.bestStreak
+      };
+    } catch (e){
+      return d;
+    }
+  }
+
+  function saveState(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e){ /* storage unavailable or full: nothing else we can do */ }
+  }
+
+  var state = loadState();
+
+  function normHabitVal(v){
+    return (v === "min" || v === "full") ? v : "none";
+  }
+
+  function getDayEntry(key){
+    var e = state.days[key];
+    return {
+      school: normHabitVal(e && e.school),
+      business: normHabitVal(e && e.business),
+      ball: normHabitVal(e && e.ball)
+    };
+  }
+
+  function setHabit(dayKey, habit, value){
+    if (!state.days[dayKey]) state.days[dayKey] = { school:"none", business:"none", ball:"none" };
+    state.days[dayKey][habit] = value;
+    saveState();
+  }
+
+  /* ================= Streak / score logic ================= */
+
+  // A day qualifies toward the streak if: it's Sunday (skipped entirely,
+  // never breaks/extends), or it's Monday (School only), or all three
+  // habits are min/full. Walking forward from the earliest recorded day
+  // keeps this bounded and lets "today" stay incomplete without resetting
+  // the streak that's already been earned.
+  function computeStreaks(todayKey){
+    var best = state.bestStreak || 0;
+    var keys = Object.keys(state.days);
+    if (keys.length === 0) return { current:0, best:best };
+
+    var earliest = keys.reduce(function(a,b){ return a < b ? a : b; });
+    if (earliest > todayKey) return { current:0, best:best };
+
+    var running = 0;
+    var key = earliest;
+    var guard = 0;
+    while (key <= todayKey && guard < 20000){
+      guard++;
+      var dow = dowOfKey(key);
+      if (dow !== 0){
+        var entry = getDayEntry(key);
+        var qualifies = (dow === 1)
+          ? (entry.school === "min" || entry.school === "full")
+          : (entry.school !== "none" && entry.business !== "none" && entry.ball !== "none");
+
+        if (key === todayKey && !qualifies){
+          // today isn't over yet; don't extend, don't reset
+        } else if (qualifies){
+          running++;
+          if (running > best) best = running;
+        } else {
+          running = 0;
+        }
+      }
+      key = addDaysToKey(key, 1);
+    }
+    return { current: running, best: best };
+  }
+
+  function refreshStreaks(todayKey){
+    var r = computeStreaks(todayKey);
+    if (r.best > (state.bestStreak || 0)){
+      state.bestStreak = r.best;
+      saveState();
+    }
+    return { current: r.current, best: state.bestStreak };
+  }
+
+  function computeWeekScore(mondayKey){
+    var score = 0;
+    for (var i=0;i<7;i++){
+      var key = addDaysToKey(mondayKey, i);
+      var entry = getDayEntry(key);
+      if (entry.school !== "none") score++;
+      if (entry.business !== "none") score++;
+      if (entry.ball !== "none") score++;
+    }
+    return score;
+  }
+
+  /* ================= Sunday review window ================= */
+
+  // Real Sydney wall-clock (not the 3am-shifted app day): the review
+  // opens Sunday from 6pm and stays open through the 3am rollover into
+  // Monday, since the tracked week hasn't turned over yet at that point.
+  function isSundayReviewWindow(date){
+    var p = sydneyParts(date || new Date());
+    var dow = new Date(Date.UTC(p.y, p.mo-1, p.d)).getUTCDay();
+    if (dow === 0 && p.h >= 18) return true;
+    if (dow === 1 && p.h < ROLLOVER_HOUR) return true;
+    return false;
+  }
+
+  function getWeekEntry(weekKey){
+    var w = state.weeks[weekKey];
+    return {
+      note: (w && typeof w.note === "string") ? w.note : "",
+      tasks: (w && Array.isArray(w.tasks)) ? [w.tasks[0]||"", w.tasks[1]||"", w.tasks[2]||""] : ["","",""]
+    };
+  }
+
+  function saveWeekNote(weekKey, note){
+    if (!state.weeks[weekKey]) state.weeks[weekKey] = { note:"", tasks:["","",""] };
+    state.weeks[weekKey].note = note;
+    saveState();
+  }
+
+  function saveWeekTasks(weekKey, tasks){
+    if (!state.weeks[weekKey]) state.weeks[weekKey] = { note:"", tasks:["","",""] };
+    state.weeks[weekKey].tasks = tasks;
+    saveState();
+  }
+
+  /* ================= Rendering ================= */
+
+  var todayKeyCache = appDateKey();
+
+  function qs(id){ return document.getElementById(id); }
+
+  /* ---- Today screen ---- */
+
+  function buildHabitRow(habitDef, entry, isMonday){
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "habit-row";
+    row.dataset.habit = habitDef.key;
+
+    var mark = document.createElement("div");
+    mark.className = "mark";
+
+    var main = document.createElement("div");
+    main.className = "habit-main";
+
+    var topLine = document.createElement("div");
+    topLine.className = "habit-top-line";
+    var label = document.createElement("span");
+    label.className = "habit-label";
+    label.textContent = habitDef.label;
+    var stateSpan = document.createElement("span");
+    stateSpan.className = "habit-state";
+    topLine.appendChild(label);
+    topLine.appendChild(stateSpan);
+
+    var targetLine = document.createElement("div");
+    var showCadets = isMonday && (habitDef.key === "business" || habitDef.key === "ball");
+    targetLine.className = showCadets ? "habit-cadets" : "habit-target";
+    targetLine.textContent = showCadets ? CADETS_TEXT : habitDef.target;
+
+    main.appendChild(topLine);
+    main.appendChild(targetLine);
+    row.appendChild(mark);
+    row.appendChild(main);
+
+    row.addEventListener("click", function(){
+      var today = appDateKey();
+      if (today !== todayKeyCache){
+        // date rolled over while the app sat open; bring everything current
+        todayKeyCache = today;
+        buildTodayScreen();
+        return;
+      }
+      var cur = getDayEntry(today)[habitDef.key];
+      var next = CYCLE[cur];
+      setHabit(today, habitDef.key, next);
+      applyHabitRowState(row, next);
+      updateStreakUI();
+    });
+
+    applyHabitRowState(row, entry[habitDef.key]);
+    return row;
+  }
+
+  function applyHabitRowState(row, value){
+    row.dataset.state = value;
+    var mark = row.querySelector(".mark");
+    mark.className = "mark" + (value !== "none" ? " " + value : "");
+    row.querySelector(".habit-state").textContent = STATE_LABEL[value];
+  }
+
+  function buildTodayScreen(){
+    var today = appDateKey();
+    todayKeyCache = today;
+    var isMonday = dowOfKey(today) === 1;
+    var entry = getDayEntry(today);
+
+    qs("todayDateLine").textContent = formatLongDate(today);
+
+    var list = qs("habitList");
+    list.innerHTML = "";
+    HABITS.forEach(function(h){
+      list.appendChild(buildHabitRow(h, entry, isMonday));
+    });
+
+    var sched = scheduleForKey(today);
+    qs("scheduleSummary").firstChild ? null : null;
+    qs("scheduleSummary").textContent = "Today's schedule";
+    var itemsWrap = qs("scheduleItems");
+    itemsWrap.innerHTML = "";
+    sched.items.forEach(function(pair){
+      var row = document.createElement("div");
+      row.className = "schedule-row";
+      var time = document.createElement("div");
+      time.className = "schedule-time";
+      time.textContent = pair[0];
+      var desc = document.createElement("div");
+      desc.className = "schedule-desc";
+      desc.textContent = pair[1];
+      row.appendChild(time);
+      row.appendChild(desc);
+      itemsWrap.appendChild(row);
+    });
+
+    renderTasksBanner(today);
+    updateStreakUI();
+  }
+
+  function renderTasksBanner(todayKey){
+    var wk = isoWeekKey(todayKey);
+    var entry = getWeekEntry(wk);
+    var hasTasks = entry.tasks.some(function(t){ return t.trim().length > 0; });
+    var banner = qs("tasksBanner");
+    if (!hasTasks){
+      banner.hidden = true;
+      return;
+    }
+    banner.hidden = false;
+    var list = qs("tasksBannerList");
+    list.innerHTML = "";
+    entry.tasks.forEach(function(t){
+      if (!t.trim()) return;
+      var li = document.createElement("li");
+      li.textContent = t;
+      list.appendChild(li);
+    });
+    var noteEl = qs("tasksBannerNote");
+    var prevWeekKey = isoWeekKey(addDaysToKey(mondayOfWeekKey(todayKey), -7));
+    var prevNote = getWeekEntry(prevWeekKey).note;
+    if (prevNote.trim()){
+      noteEl.hidden = false;
+      noteEl.textContent = prevNote;
+    } else {
+      noteEl.hidden = true;
+    }
+  }
+
+  function updateStreakUI(){
+    var r = refreshStreaks(appDateKey());
+    qs("streakNumber").textContent = String(r.current);
+  }
+
+  /* ---- Week screen ---- */
+
+  var weekOffset = 0;
+
+  function buildWeekScreen(){
+    var today = appDateKey();
+    var currentMonday = mondayOfWeekKey(today);
+    var viewMonday = addDaysToKey(currentMonday, weekOffset * 7);
+
+    qs("weekRange").textContent = formatWeekRange(viewMonday);
+    qs("weekNext").disabled = (weekOffset >= 0);
+
+    var grid = qs("weekGrid");
+    grid.innerHTML = "";
+    grid.appendChild(document.createElement("div")); // corner
+    for (var i=0;i<7;i++){
+      var dayKey = addDaysToKey(viewMonday, i);
+      var head = document.createElement("div");
+      head.className = "col-head" + (dayKey === today ? " is-today" : "");
+      head.textContent = WEEKDAY_SHORT[i];
+      grid.appendChild(head);
+    }
+
+    var rows = [
+      { key:"school", label:"School" },
+      { key:"business", label:"Business" },
+      { key:"ball", label:"Ball" }
+    ];
+    rows.forEach(function(r){
+      var rowLabel = document.createElement("div");
+      rowLabel.className = "row-label";
+      rowLabel.textContent = r.label;
+      grid.appendChild(rowLabel);
+      for (var i=0;i<7;i++){
+        var dayKey = addDaysToKey(viewMonday, i);
+        var cell = document.createElement("div");
+        cell.className = "cell" + (dayKey === today ? " is-today" : "");
+        var mark = document.createElement("div");
+        var val = getDayEntry(dayKey)[r.key];
+        mark.className = "week-mark" + (val !== "none" ? " " + val : "");
+        cell.appendChild(mark);
+        grid.appendChild(cell);
+      }
+    });
+
+    var score = computeWeekScore(viewMonday);
+    qs("weekScore").textContent = score + " / 21";
+    var streaks = refreshStreaks(today);
+    qs("bestStreakNum").textContent = String(streaks.best);
+
+    var reviewBox = qs("reviewBox");
+    if (weekOffset === 0 && isSundayReviewWindow()){
+      reviewBox.hidden = false;
+      var thisWeekKey = isoWeekKey(today);
+      var nextWeekKey = isoWeekKey(addDaysToKey(currentMonday, 7));
+      var thisWeek = getWeekEntry(thisWeekKey);
+      var nextWeek = getWeekEntry(nextWeekKey);
+      qs("reviewNote").value = thisWeek.note;
+      qs("reviewTask1").value = nextWeek.tasks[0];
+      qs("reviewTask2").value = nextWeek.tasks[1];
+      qs("reviewTask3").value = nextWeek.tasks[2];
+    } else {
+      reviewBox.hidden = true;
+    }
+  }
+
+  function wireWeekScreen(){
+    qs("weekPrev").addEventListener("click", function(){
+      weekOffset -= 1;
+      buildWeekScreen();
+    });
+    qs("weekNext").addEventListener("click", function(){
+      if (weekOffset >= 0) return;
+      weekOffset += 1;
+      buildWeekScreen();
+    });
+
+    var savedTimer = null;
+    qs("reviewSave").addEventListener("click", function(){
+      var today = appDateKey();
+      var currentMonday = mondayOfWeekKey(today);
+      var thisWeekKey = isoWeekKey(today);
+      var nextWeekKey = isoWeekKey(addDaysToKey(currentMonday, 7));
+      saveWeekNote(thisWeekKey, qs("reviewNote").value);
+      saveWeekTasks(nextWeekKey, [qs("reviewTask1").value, qs("reviewTask2").value, qs("reviewTask3").value]);
+      var note = qs("reviewSavedNote");
+      note.classList.add("show");
+      if (savedTimer) clearTimeout(savedTimer);
+      savedTimer = setTimeout(function(){ note.classList.remove("show"); }, 1600);
+    });
+
+    // Persist as-you-type too, so nothing is lost if the review window
+    // closes (or the tab is backgrounded) before Save is tapped.
+    ["reviewNote","reviewTask1","reviewTask2","reviewTask3"].forEach(function(id){
+      qs(id).addEventListener("input", function(){
+        var today = appDateKey();
+        var currentMonday = mondayOfWeekKey(today);
+        var thisWeekKey = isoWeekKey(today);
+        var nextWeekKey = isoWeekKey(addDaysToKey(currentMonday, 7));
+        saveWeekNote(thisWeekKey, qs("reviewNote").value);
+        saveWeekTasks(nextWeekKey, [qs("reviewTask1").value, qs("reviewTask2").value, qs("reviewTask3").value]);
+      });
+    });
+  }
+
+  /* ---- Code screen ---- */
+
+  function buildCodeScreen(){
+    var nameInput = qs("nameInput");
+    nameInput.value = state.name || "";
+    nameInput.addEventListener("input", function(){
+      state.name = nameInput.value;
+      saveState();
+    });
+  }
+
+  /* ---- Lock screen ---- */
+
+  function buildLockScreen(){
+    updateLockUI();
+  }
+
+  function updateLockUI(){
+    var today = appDateKey();
+    var daysRemaining = daysBetweenKeys(today, LOCK_DATE_KEY);
+    var activeEl = qs("lockActive");
+    var unlockedEl = qs("lockUnlocked");
+    if (daysRemaining > 0){
+      activeEl.hidden = false;
+      unlockedEl.hidden = true;
+      qs("lockCount").textContent = String(daysRemaining);
+    } else {
+      activeEl.hidden = true;
+      unlockedEl.hidden = false;
+    }
+  }
+
+  /* ---- Tab bar / navigation ---- */
+
+  var builders = { today: null, week: false, code: false, lock: null };
+
+  function showScreen(name){
+    document.querySelectorAll(".screen").forEach(function(s){
+      s.hidden = (s.dataset.screen !== name);
+    });
+    document.querySelectorAll(".tab").forEach(function(t){
+      if (t.dataset.target === name) t.setAttribute("aria-current","page");
+      else t.removeAttribute("aria-current");
+    });
+    if (name === "week"){
+      weekOffset = 0;
+      buildWeekScreen();
+    } else if (name === "lock"){
+      updateLockUI();
+    }
+  }
+
+  function wireTabBar(){
+    document.querySelectorAll(".tab").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        showScreen(btn.dataset.target);
+      });
+    });
+  }
+
+  /* ---- Resume-from-background handling ---- */
+  // A PWA opened from the home screen is often a suspended tab rather than
+  // a fresh load, so the date needs re-checking whenever it becomes visible.
+
+  function handleResume(){
+    var today = appDateKey();
+    if (today !== todayKeyCache){
+      buildTodayScreen();
+    } else {
+      updateStreakUI();
+    }
+    var activeTab = document.querySelector('.tab[aria-current="page"]');
+    var activeName = activeTab ? activeTab.dataset.target : "today";
+    if (activeName === "week") buildWeekScreen();
+    if (activeName === "lock") updateLockUI();
+  }
+
+  document.addEventListener("visibilitychange", function(){
+    if (!document.hidden) handleResume();
+  });
+  window.addEventListener("pageshow", handleResume);
+
+  /* ---- Service worker ---- */
+
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){ /* offline support is best-effort */ });
+    });
+  }
+
+  /* ---- Init ---- */
+
+  function init(){
+    wireTabBar();
+    wireWeekScreen();
+    buildTodayScreen();
+    buildCodeScreen();
+    buildLockScreen();
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
 </html>
