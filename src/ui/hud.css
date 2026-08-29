@@ -1,0 +1,92 @@
+#combat-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  font-family: 'Courier New', monospace;
+}
+
+.crosshair-cluster {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+.crosshair-cluster .ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.ring-health {
+  width: 92px;
+  height: 92px;
+}
+
+.ring-charge {
+  width: 60px;
+  height: 60px;
+}
+
+.ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 5;
+}
+
+.ring-health .ring-fg {
+  fill: none;
+  stroke: #22e8ff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.15s ease-out, stroke 0.3s ease-out;
+}
+
+.ring-charge .ring-fg {
+  fill: none;
+  stroke: #9beeff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.15s ease-out;
+}
+
+.crosshair-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  background: #eafcff;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(34, 232, 255, 0.8);
+}
+
+.weapon-name {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  color: #9beeff;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+.death-message {
+  position: fixed;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ff3b3b;
+  font-size: 32px;
+  letter-spacing: 0.4em;
+  text-shadow: 0 0 20px rgba(255, 59, 59, 0.6);
+}
+
+.death-message.hidden {
+  display: none;
+}

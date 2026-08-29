@@ -109,6 +109,23 @@ export function buildTestRoom(scene) {
   // platform sits low (0.6) and deep (8 units) so a well-timed dash clears it.
   addBox(scene, colliders, new THREE.Vector3(0, 0.3, 35.3), new THREE.Vector3(10, 0.6, 8))
 
+  // --- Phase 2 combat sandbox: a Mote group scattered through the open floor, two Wardens guarding the pillar field ---
+  const moteSpawns = [
+    [-4, -18],
+    [2, -15],
+    [8, -12],
+    [-8, -10],
+    [14, 10],
+    [22, 14],
+    [12, 24],
+    [26, 26],
+  ].map(([x, z]) => new THREE.Vector3(x, 1.2, z))
+
+  const wardenSpawns = [
+    { position: new THREE.Vector3(10, 0, 14), facingYaw: Math.PI },
+    { position: new THREE.Vector3(24, 0, 24), facingYaw: Math.PI },
+  ]
+
   const ambient = new THREE.HemisphereLight(0x2a3d4d, 0x03040a, 1.1)
   scene.add(ambient)
   const key = new THREE.DirectionalLight(0x8fd8ff, 0.5)
@@ -119,5 +136,6 @@ export function buildTestRoom(scene) {
     colliders,
     spawn: new THREE.Vector3(stairsX, 0.15, -38),
     fallResetY: -15,
+    enemySpawns: { motes: moteSpawns, wardens: wardenSpawns },
   }
 }

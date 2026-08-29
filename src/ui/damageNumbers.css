@@ -1,0 +1,17 @@
+#damage-numbers {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.damage-number {
+  position: fixed;
+  display: none;
+  transform: translate(-50%, -50%);
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 15px;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+}

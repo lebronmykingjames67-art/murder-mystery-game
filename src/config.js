@@ -36,8 +36,53 @@ export const config = {
   },
   player: {
     radius: 0.4,
+    maxHealth: 100,
   },
   physics: {
     fixedTimestep: 1 / 60,
+  },
+  weapons: {
+    splitter: {
+      damage: 18,
+      fireCooldown: 1 / 4, // sec, "fire rate 4/sec"
+      chargeCost: 10,
+      maxCharge: 100,
+      bulletSpeed: 45, // units/sec
+      bulletRadius: 0.12,
+      bulletLife: 3, // sec before a bullet despawns untouched
+      splitDamageScale: 0.5, // each split bullet's damage, relative to the bullet that bounced
+      splitSpreadDegrees: 22,
+    },
+    static: {
+      damageClose: 60,
+      damageFalloffDistance: 8, // units; damage drops off to minDamage by this range
+      minDamage: 10,
+      fireCooldown: 1, // sec, "fire rate 1/sec"
+      chargeCost: 25,
+      maxCharge: 100,
+      pelletCount: 8,
+      spreadDegrees: 12,
+      range: 40,
+      knockback: 16, // units/sec impulse applied to the shooter, opposite the aim direction
+    },
+    chargeRefillOnHit: 18,
+  },
+  enemies: {
+    mote: {
+      health: 1,
+      contactDamage: 6,
+      contactCooldown: 0.5, // sec between contact-damage ticks
+      speed: 2.2, // units/sec
+      radius: 0.5,
+    },
+    warden: {
+      health: 60,
+      contactDamage: 14,
+      contactCooldown: 0.8,
+      speed: 2.8,
+      radius: 1.1,
+      shieldArcDegrees: 120, // frontal arc that reflects bullets back at the shooter
+      turnSpeedDegrees: 55, // how fast it rotates to face the player
+    },
   },
 }

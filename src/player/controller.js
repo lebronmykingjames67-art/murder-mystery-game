@@ -38,6 +38,30 @@ export class PlayerController {
     this.jumpBufferTimer = Infinity
     this.timeSinceLanded = Infinity
     this.justLanded = false
+
+    this.maxHealth = config.player.maxHealth
+    this.health = this.maxHealth
+    this.justDamaged = false
+    this.lastDamageAmount = 0
+  }
+
+  /** Applies damage unless the player is currently invulnerable (e.g. mid-dash). Returns true if it landed. */
+  takeDamage(amount) {
+    if (this.invulnerable || this.health <= 0) return false
+    this.health = Math.max(this.health - amount, 0)
+    this.justDamaged = true
+    this.lastDamageAmount = amount
+    return true
+  }
+
+  respawn(position) {
+    this.feet.copy(position)
+    this.velocity.set(0, 0, 0)
+    this.health = this.maxHealth
+    this.dashing = false
+    this.sliding = false
+    this.dashCooldownRemaining = 0
+    this.invulnTimer = 0
   }
 
   applyLook(movementX, movementY) {
@@ -78,6 +102,7 @@ export class PlayerController {
     const movement = this.config.movement
     this.input = input
     this.strafeInput = (input.right ? 1 : 0) - (input.left ? 1 : 0)
+    this.justDamaged = false
 
     this.tryStartDash(input, movement)
     if (this.dashing) {
