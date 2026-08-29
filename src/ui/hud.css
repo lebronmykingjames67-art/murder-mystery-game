@@ -75,18 +75,3 @@
   opacity: 0;
   transition: opacity 0.4s ease-out;
 }
-
-.death-message {
-  position: fixed;
-  top: 42%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #ff3b3b;
-  font-size: 32px;
-  letter-spacing: 0.4em;
-  text-shadow: 0 0 20px rgba(255, 59, 59, 0.6);
-}
-
-.death-message.hidden {
-  display: none;
-}

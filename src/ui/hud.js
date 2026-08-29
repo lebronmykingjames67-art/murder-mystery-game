@@ -42,14 +42,12 @@ export function createCombatHud() {
       <div class="crosshair-dot"></div>
     </div>
     <div class="weapon-name"></div>
-    <div class="death-message hidden">YOU DIED</div>
   `
   document.body.appendChild(root)
 
   const healthFg = root.querySelector('.ring-health .ring-fg')
   const chargeFg = root.querySelector('.ring-charge .ring-fg')
   const weaponNameEl = root.querySelector('.weapon-name')
-  const deathEl = root.querySelector('.death-message')
 
   let lastWeaponKey = null
   let weaponNameTimer = 0
@@ -75,8 +73,6 @@ export function createCombatHud() {
     }
     weaponNameTimer -= dt
     weaponNameEl.style.opacity = weaponNameTimer > 0 ? '1' : '0'
-
-    deathEl.classList.toggle('hidden', controller.health > 0)
   }
 
   return { update, pulseWeaponName }

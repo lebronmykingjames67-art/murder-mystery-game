@@ -43,6 +43,12 @@ export class PlayerController {
     this.health = this.maxHealth
     this.justDamaged = false
     this.lastDamageAmount = 0
+
+    // Per-run modifiers (e.g. from Archive picks — see roomTypes.js). Reset on
+    // respawn rather than baked into config, so a new run starts from base
+    // stats instead of carrying a previous run's boosts (and the dev overlay's
+    // sliders keep showing the true base values, not a run-inflated one).
+    this.dashSpeedMultiplier = 1
   }
 
   /** Applies damage unless the player is currently invulnerable (e.g. mid-dash). Returns true if it landed. */
@@ -54,14 +60,27 @@ export class PlayerController {
     return true
   }
 
-  respawn(position) {
+  /** Clears per-run modifiers (Archive picks) and heals to full base health — call once at the start of a new run. */
+  resetRunStats() {
+    this.maxHealth = this.config.player.maxHealth
+    this.health = this.maxHealth
+    this.dashSpeedMultiplier = 1
+  }
+
+  /** Repositions the player without touching run stats — use for floor-to-floor progression. */
+  teleport(position) {
     this.feet.copy(position)
     this.velocity.set(0, 0, 0)
-    this.health = this.maxHealth
     this.dashing = false
     this.sliding = false
     this.dashCooldownRemaining = 0
     this.invulnTimer = 0
+  }
+
+  /** Full reset for a fresh run: new stats and a new position (e.g. after death). */
+  respawn(position) {
+    this.resetRunStats()
+    this.teleport(position)
   }
 
   applyLook(movementX, movementY) {
@@ -177,8 +196,9 @@ export class PlayerController {
     this.invulnTimer = movement.dashInvuln
     this.dashCooldownRemaining = movement.dashCooldown
     this.sliding = false
-    this.velocity.x = dir.x * movement.dashSpeed
-    this.velocity.z = dir.z * movement.dashSpeed
+    const dashSpeed = movement.dashSpeed * this.dashSpeedMultiplier
+    this.velocity.x = dir.x * dashSpeed
+    this.velocity.z = dir.z * dashSpeed
   }
 
   updateDash(dt) {

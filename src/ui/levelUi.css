@@ -1,0 +1,53 @@
+#floor-label {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  color: #7fb6c2;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  opacity: 0.7;
+  z-index: 11;
+}
+
+.story-fragment {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 60ch;
+  padding: 10px 18px;
+  color: #9beeff;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+  pointer-events: none;
+  z-index: 11;
+}
+
+.story-fragment.visible {
+  opacity: 0.85;
+}
+
+.interact-prompt {
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(4, 8, 12, 0.85);
+  border: 1px solid rgba(34, 232, 255, 0.4);
+  color: #eafcff;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  z-index: 13;
+}
+
+.interact-prompt.hidden {
+  display: none;
+}

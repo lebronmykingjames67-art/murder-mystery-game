@@ -85,4 +85,36 @@ export const config = {
       turnSpeedDegrees: 55, // how fast it rotates to face the player
     },
   },
+  floor: {
+    chunkSize: 40, // every chunk is chunkSize x chunkSize
+    wallHeight: 8,
+    wallThickness: 1,
+    doorWidth: 6,
+    // DESIGN.md Section 17: room count per floor. Floor 5 is "a single hand-built
+    // arena for the boss" — reusing the normal generator with roomCount 1 as a
+    // stand-in "final fight" until Phase 6 builds the real boss.
+    roomCounts: [3, 4, 5, 5, 1],
+    // DESIGN.md Section 14: one accent color per floor.
+    accentColors: [0x22e8ff, 0xffb020, 0xff2fd6, 0x9dff1f, 0xffffff],
+    // DESIGN.md Section 17: enemies per Combat room, by floor (index 0 = floor 1). Floor 5's
+    // arena reuses the floor 4 numbers as a placeholder "final fight" until the real boss (Phase 6).
+    combatByFloor: [
+      { motes: 3, wardens: 0 },
+      { motes: 3, wardens: 1 },
+      { motes: 4, wardens: 1 },
+      { motes: 4, wardens: 2 },
+      { motes: 4, wardens: 2 },
+    ],
+  },
+  silence: {
+    healAmount: 20,
+  },
+  archive: {
+    // Placeholder picks until Phase 5 builds the real 24 Echoes (DESIGN.md Section 11).
+    choices: [
+      { id: 'vigor', label: 'VIGOR', description: '+20 max HP for this run.' },
+      { id: 'overcharge', label: 'OVERCHARGE', description: 'Both weapons refill to full charge now.' },
+      { id: 'momentum', label: 'MOMENTUM', description: '+25% dash speed for this run.' },
+    ],
+  },
 }

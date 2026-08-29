@@ -3,13 +3,17 @@ import './style.css'
 import './ui/devOverlay.css'
 import './ui/hud.css'
 import './ui/damageNumbers.css'
+import './ui/levelUi.css'
+import './ui/deathScreen.css'
 import { config } from './config.js'
 import { PlayerController } from './player/controller.js'
 import { CameraRig } from './player/camera.js'
-import { buildTestRoom } from './level/testRoom.js'
+import { generateFloor } from './level/generator.js'
+import { createRoomContent, applyArchiveChoice } from './level/roomTypes.js'
 import { initDevOverlay } from './ui/devOverlay.js'
 import { createCombatHud } from './ui/hud.js'
 import { createDamageNumbers } from './ui/damageNumbers.js'
+import { createDeathScreen } from './ui/deathScreen.js'
 import { createWeaponSystem } from './weapons/weaponSystem.js'
 import { createEnemyManager } from './enemies/enemyManager.js'
 
@@ -27,18 +31,65 @@ scene.fog = new THREE.FogExp2(0x000000, 0.008)
 
 const camera = new THREE.PerspectiveCamera(config.camera.baseFov, window.innerWidth / window.innerHeight, 0.1, 150)
 
-const { colliders, spawn, fallResetY, enemySpawns } = buildTestRoom(scene)
-const controller = new PlayerController(config, spawn)
-controller.yaw = Math.PI // face north, into the room, instead of at the spawn wall behind it
+const controller = new PlayerController(config, new THREE.Vector3())
 const cameraRig = new CameraRig(config, camera)
 const devOverlay = initDevOverlay(config)
 const hud = createCombatHud()
 const damageNumbers = createDamageNumbers(camera)
-
+const deathScreen = createDeathScreen()
 const weaponSystem = createWeaponSystem(scene, config)
-const enemyManager = createEnemyManager(scene, config)
-for (const position of enemySpawns.motes) enemyManager.spawnMote(position)
-for (const warden of enemySpawns.wardens) enemyManager.spawnWarden(warden.position, warden.facingYaw)
+
+const floorLabel = document.createElement('div')
+floorLabel.id = 'floor-label'
+document.body.appendChild(floorLabel)
+
+// --- Floor state: fully rebuilt on every loadFloor() call. Level geometry,
+// doors, and enemies all live under `levelGroup` so tearing down a floor is
+// just removing that one group, rather than tracking every mesh by hand. ---
+let levelGroup = null
+let colliders = []
+let enemyManager = null
+let roomContents = []
+let exitPosition = null
+let floorSpawn = null
+let currentFloorNumber = 1
+
+function onArchiveChoice(choice) {
+  applyArchiveChoice(choice, controller, weaponSystem)
+}
+
+function loadFloor(floorNumber) {
+  if (levelGroup) scene.remove(levelGroup)
+  for (const content of roomContents) content.dispose?.()
+
+  levelGroup = new THREE.Group()
+  scene.add(levelGroup)
+  currentFloorNumber = floorNumber
+  floorLabel.textContent = `FLOOR ${floorNumber}`
+
+  const result = generateFloor(levelGroup, config, floorNumber)
+  colliders = result.colliders
+  exitPosition = result.exitPosition
+  floorSpawn = result.spawn
+
+  enemyManager = createEnemyManager(levelGroup, config)
+
+  roomContents = []
+  for (const room of result.rooms) {
+    const content = createRoomContent(levelGroup, colliders, config, room, floorNumber, enemyManager, onArchiveChoice)
+    if (content) roomContents.push(content)
+  }
+
+  controller.teleport(floorSpawn)
+  controller.yaw = Math.PI
+}
+
+function startNewRun() {
+  controller.resetRunStats()
+  loadFloor(1)
+}
+
+startNewRun()
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -50,6 +101,7 @@ window.addEventListener('resize', () => {
 const keys = new Set()
 let dashRequested = false
 let fireRequested = false
+let interactRequested = false
 let locked = false
 
 overlay.addEventListener('click', () => canvas.requestPointerLock())
@@ -72,6 +124,7 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'Space') event.preventDefault()
   keys.add(event.code)
   if ((event.code === 'KeyQ' || event.code === 'KeyE') && !event.repeat) dashRequested = true
+  if (event.code === 'KeyF' && !event.repeat) interactRequested = true
 })
 
 document.addEventListener('keyup', (event) => {
@@ -93,6 +146,8 @@ const FIXED_DT = config.physics.fixedTimestep
 let accumulator = 0
 let lastTime = performance.now()
 let deathTimer = 0
+let victoryTimer = 0
+let victoryPending = false
 let wasAlive = true
 
 function fixedUpdate(dt) {
@@ -106,34 +161,62 @@ function fixedUpdate(dt) {
     jumpPressed: keys.has('Space'),
     dashPressed: dashRequested,
     firePressed: fireRequested,
+    interactPressed: interactRequested,
     switchToSplitter: keys.has('Digit1'),
     switchToStatic: keys.has('Digit2'),
   }
   dashRequested = false
   fireRequested = false
+  interactRequested = false
 
   controller.update(dt, input, colliders)
 
-  if (controller.feet.y < fallResetY) {
-    controller.feet.copy(spawn)
-    controller.velocity.set(0, 0, 0)
-  }
+  if (controller.feet.y < -20) controller.teleport(floorSpawn)
 
   const world = { colliders, enemyManager, controller }
   weaponSystem.update(dt, input, controller, camera, world, weaponCallbacks)
   enemyManager.update(dt, controller, colliders, enemyCallbacks)
+
+  for (const content of roomContents) content.update(dt, controller, input)
 
   if (controller.justDamaged) {
     const intensity = Math.min(controller.lastDamageAmount / 25, 1) * 0.3
     cameraRig.triggerShake(intensity, 0.15)
   }
 
+  if (!victoryPending && exitPosition) {
+    const dist = Math.hypot(controller.feet.x - exitPosition.x, controller.feet.z - exitPosition.z)
+    if (dist < 2.5) {
+      if (currentFloorNumber >= 5) {
+        victoryPending = true
+        victoryTimer = 3
+        deathScreen.showVictory()
+      } else {
+        loadFloor(currentFloorNumber + 1)
+      }
+    }
+  }
+  if (victoryPending) {
+    victoryTimer -= dt
+    if (victoryTimer <= 0) {
+      victoryPending = false
+      deathScreen.hide()
+      startNewRun()
+    }
+  }
+
   const alive = controller.health > 0
-  if (wasAlive && !alive) deathTimer = 2
+  if (wasAlive && !alive) {
+    deathTimer = 2.5
+    deathScreen.showDeath(currentFloorNumber)
+  }
   wasAlive = alive
   if (!alive) {
     deathTimer -= dt
-    if (deathTimer <= 0) controller.respawn(spawn)
+    if (deathTimer <= 0) {
+      deathScreen.hide()
+      startNewRun()
+    }
   }
 }
 
