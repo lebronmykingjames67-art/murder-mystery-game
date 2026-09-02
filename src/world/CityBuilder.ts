@@ -28,6 +28,55 @@ export interface CityBuildResult {
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1)
 const LAMP_POLE_GEO = new THREE.CylinderGeometry(0.18, 0.22, 1, 6)
 const LAMP_HEAD_GEO = new THREE.SphereGeometry(0.55, 8, 6)
+const ROOF_GEO = new THREE.ConeGeometry(1, 1, 4)
+
+/** One shared lit-window pattern; each district clones it with its own tiling so window size stays consistent. */
+function buildWindowTexture(): THREE.Texture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#05070a'
+  ctx.fillRect(0, 0, 64, 64)
+  const cols = 8
+  const rows = 8
+  const cellW = 64 / cols
+  const cellH = 64 / rows
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const lit = Math.random() < 0.6
+      ctx.fillStyle = lit ? (Math.random() < 0.5 ? '#ffdb8a' : '#bcd8ff') : '#0d1016'
+      const pad = cellW * 0.2
+      ctx.fillRect(c * cellW + pad, r * cellH + pad, cellW - pad * 2, cellH - pad * 2)
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+const baseWindowTexture = buildWindowTexture()
+
+/** A small gable-roofed house, used in place of office-block towers in low-density districts. */
+function buildHouse(scene: THREE.Scene, x: number, z: number, footprint: number, wallHeight: number, wallColor: number, colliders: Collider[]): void {
+  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.85 })
+  const body = new THREE.Mesh(UNIT_BOX, wallMat)
+  body.scale.set(footprint, wallHeight, footprint * 0.85)
+  body.position.set(x, wallHeight / 2, z)
+  scene.add(body)
+
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b3a2a, roughness: 0.8 })
+  const roofHeight = wallHeight * 0.55
+  const roof = new THREE.Mesh(ROOF_GEO, roofMat)
+  roof.scale.set(footprint * 0.78, roofHeight, footprint * 0.78)
+  roof.rotation.y = Math.PI / 4
+  roof.position.set(x, wallHeight + roofHeight / 2, z)
+  scene.add(roof)
+
+  colliders.push({ x, z, radius: (footprint / 2) * 1.05, kind: 'building' })
+}
 
 const tmpMatrix = new THREE.Matrix4()
 const tmpPos = new THREE.Vector3()
@@ -75,6 +124,12 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
     const rand = seededRandom(`${district.id}_bld`)
     const depot = graph.depotNode()
     const skipDensity = district.sparse ? 0.45 : 0.12
+    const isResidential = district.id === 'suburbs'
+
+    const avgHeight = (district.minBuildingHeight + district.maxBuildingHeight) / 2
+    const windowTex = baseWindowTexture.clone()
+    windowTex.needsUpdate = true
+    windowTex.repeat.set(Math.max(1, Math.round((district.blockSize * 0.55) / 5)), Math.max(1, Math.round(avgHeight / 5)))
 
     for (let col = 0; col < district.gridCols - 1; col++) {
       for (let row = 0; row < district.gridRows - 1; row++) {
@@ -86,7 +141,20 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
         const footprint = district.blockSize * (0.45 + rand() * 0.28)
         const height = district.minBuildingHeight + rand() * (district.maxBuildingHeight - district.minBuildingHeight)
         const color = district.buildingPalette[Math.floor(rand() * district.buildingPalette.length)]
-        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05 })
+
+        if (isResidential) {
+          buildHouse(scene, cx, cz, footprint * 0.55, height, color, colliders)
+          continue
+        }
+
+        const mat = new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.85,
+          metalness: 0.05,
+          emissiveMap: windowTex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.55,
+        })
         const mesh = new THREE.Mesh(UNIT_BOX, mat)
         mesh.scale.set(footprint, height, footprint)
         mesh.position.set(cx, height / 2, cz)

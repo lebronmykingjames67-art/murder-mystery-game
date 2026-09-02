@@ -75,7 +75,7 @@ export function HUD({ engine }: Props) {
       {interactPrompt && <div className="interact-prompt">{interactPrompt}</div>}
 
       <div className="hud-bottombar">
-        <Navigation />
+        <Navigation engine={engine} />
         <div className="gauge-cluster">
           <div className="speed-gauge">
             <div className="speed-value">{speedMph}</div>

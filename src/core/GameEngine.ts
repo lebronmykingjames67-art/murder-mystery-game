@@ -4,6 +4,7 @@ import { buildCity, districtAt } from '../world/CityBuilder'
 import type { CityBuildResult } from '../world/CityBuilder'
 import { PlayerVehicle } from '../entities/PlayerVehicle'
 import { TrafficManager } from '../entities/TrafficAgent'
+import { PedestrianManager } from '../entities/Pedestrian'
 import { ChaseCamera } from './ChaseCamera'
 import { InputManager, KEYS } from './InputManager'
 import { GameLoop } from './GameLoop'
@@ -40,10 +41,14 @@ export class GameEngine {
   private readonly events: EventManager
   private readonly traffic: TrafficManager
   private readonly trafficLights: TrafficLightSystem
+  private readonly pedestrians: PedestrianManager
   private readonly vehicle: PlayerVehicle
   private readonly sun: THREE.DirectionalLight
   private readonly ambient: THREE.AmbientLight
   private readonly fog: THREE.Fog
+  private readonly navCamera = new THREE.PerspectiveCamera(58, 1.4, 0.1, 500)
+  private navRenderer: THREE.WebGLRenderer | null = null
+  private navFrameSkip = 0
 
   private cash: number
   private readonly ownedVehicles: Set<VehicleTierId>
@@ -51,7 +56,7 @@ export class GameEngine {
   private upgrades: Partial<Record<VehicleTierId, Partial<Record<UpgradeSlotType, number>>>>
 
   private readonly markers = new Map<string, THREE.Group>()
-  private routeLine: THREE.Line | null = null
+  private routeLine: THREE.Mesh | null = null
   private routeLineTimer = 0
   private lastCountdownSecond = -1
   private lastIsNight = false
@@ -92,6 +97,7 @@ export class GameEngine {
     this.vehicle.teleport(depotNode.x + 7, depotNode.z, 0)
 
     this.traffic = new TrafficManager(this.scene, this.graph, this.reputation.unlockedDistricts)
+    this.pedestrians = new PedestrianManager(this.scene, this.graph, this.reputation.unlockedDistricts)
 
     const worldState: EventWorldState = {
       graph: this.graph,
@@ -142,8 +148,36 @@ export class GameEngine {
     this.loop.stop()
     this.input.dispose()
     window.removeEventListener('resize', this.resizeHandler)
+    this.detachNavCanvas()
     this.persist()
     this.renderer.dispose()
+  }
+
+  /** Mounts the small GPS-viewport renderer onto the nav panel's canvas (created/destroyed as it shows/hides). */
+  attachNavCanvas(canvas: HTMLCanvasElement): void {
+    this.detachNavCanvas()
+    this.navRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+    this.navRenderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
+    const w = canvas.clientWidth || 260
+    const h = canvas.clientHeight || 180
+    this.navRenderer.setSize(w, h, false)
+    this.navCamera.aspect = w / Math.max(1, h)
+    this.navCamera.updateProjectionMatrix()
+  }
+
+  detachNavCanvas(): void {
+    this.navRenderer?.dispose()
+    this.navRenderer = null
+  }
+
+  private renderNavView(): void {
+    if (!this.navRenderer) return
+    const forward = new THREE.Vector3(Math.sin(this.vehicle.heading), 0, Math.cos(this.vehicle.heading))
+    const camPos = new THREE.Vector3(this.vehicle.x, 16, this.vehicle.z).addScaledVector(forward, -9)
+    const lookAt = new THREE.Vector3(this.vehicle.x, 0, this.vehicle.z).addScaledVector(forward, 45)
+    this.navCamera.position.copy(camPos)
+    this.navCamera.lookAt(lookAt)
+    this.navRenderer.render(this.scene, this.navCamera)
   }
 
   // ---------------------------------------------------------------------
@@ -271,6 +305,7 @@ export class GameEngine {
 
     this.trafficLights.update(elapsed)
     this.traffic.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts, this.trafficLights)
+    this.pedestrians.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts)
     for (const t of this.traffic.positions()) {
       const dist = Math.hypot(t.x - this.vehicle.x, t.z - this.vehicle.z)
       if (dist < 2.6) {
@@ -331,6 +366,10 @@ export class GameEngine {
     })
 
     this.renderer.render(this.scene, this.camera.camera)
+    if (this.navRenderer) {
+      this.navFrameSkip = (this.navFrameSkip + 1) % 2
+      if (this.navFrameSkip === 0) this.renderNavView()
+    }
     this.input.endFrame()
   }
 
@@ -553,11 +592,13 @@ export class GameEngine {
     }
     const points = path.nodeIds.map((id) => {
       const n = this.graph.getNode(id)!
-      return new THREE.Vector3(n.x, 0.6, n.z)
+      return new THREE.Vector3(n.x, 0.55, n.z)
     })
-    const geometry = new THREE.BufferGeometry().setFromPoints(points)
     const color = order.state === 'toPickup' ? 0xffcc33 : 0x33cc66
-    this.routeLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color }))
+    const curve = new THREE.CatmullRomCurve3(points)
+    const tubeGeo = new THREE.TubeGeometry(curve, Math.max(8, points.length * 6), 0.32, 6, false)
+    const tubeMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.35 })
+    this.routeLine = new THREE.Mesh(tubeGeo, tubeMat)
     this.scene.add(this.routeLine)
 
     useGameStore.setState({ navInfo: this.computeNavInfo(path, targetLabel) })
