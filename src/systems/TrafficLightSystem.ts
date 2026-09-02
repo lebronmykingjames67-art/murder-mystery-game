@@ -14,39 +14,49 @@ export interface TrafficLightRig {
   phaseOffset: number
 }
 
-const poleGeo = new THREE.CylinderGeometry(0.09, 0.11, 3.4, 6)
-const housingGeo = new THREE.BoxGeometry(0.42, 1.05, 0.32)
-const bulbGeo = new THREE.SphereGeometry(0.13, 8, 6)
+const poleGeo = new THREE.CylinderGeometry(0.12, 0.15, 5.2, 6)
+const armGeo = new THREE.CylinderGeometry(0.1, 0.1, 6.5, 6)
+const housingGeo = new THREE.BoxGeometry(0.6, 1.7, 0.46)
+const bulbGeo = new THREE.SphereGeometry(0.22, 10, 8)
 const poleMat = new THREE.MeshStandardMaterial({ color: 0x1c1f24, roughness: 0.7 })
-const housingMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.6 })
+const housingMat = new THREE.MeshStandardMaterial({ color: 0x0e1013, roughness: 0.5 })
 
-const redOnMat = new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff2020, emissiveIntensity: 1.6 })
+const redOnMat = new THREE.MeshStandardMaterial({ color: 0xff3b30, emissive: 0xff2020, emissiveIntensity: 2.4 })
 const redOffMat = new THREE.MeshStandardMaterial({ color: 0x3a1414, roughness: 0.9 })
-const yellowOnMat = new THREE.MeshStandardMaterial({ color: 0xffd23b, emissive: 0xffbf20, emissiveIntensity: 1.6 })
+const yellowOnMat = new THREE.MeshStandardMaterial({ color: 0xffd23b, emissive: 0xffbf20, emissiveIntensity: 2.4 })
 const yellowOffMat = new THREE.MeshStandardMaterial({ color: 0x3a3314, roughness: 0.9 })
-const greenOnMat = new THREE.MeshStandardMaterial({ color: 0x3bff6a, emissive: 0x20ff5a, emissiveIntensity: 1.6 })
+const greenOnMat = new THREE.MeshStandardMaterial({ color: 0x3bff6a, emissive: 0x20ff5a, emissiveIntensity: 2.4 })
 const greenOffMat = new THREE.MeshStandardMaterial({ color: 0x123a1e, roughness: 0.9 })
 
-/** Builds one signal fixture (pole + housing + 3 bulbs) at a world position and adds it to the scene. */
+/**
+ * Builds one signal fixture at a corner and adds it to the scene: a pole plus a horizontal mast
+ * arm that reaches out over the lane (rotationY already points back toward the intersection), so
+ * the head hangs above the road an approaching driver is on instead of sitting off to the side.
+ */
 export function buildTrafficLightRig(scene: THREE.Scene, nodeId: string, x: number, z: number, rotationY: number, phaseOffset: number): TrafficLightRig {
   const group = new THREE.Group()
   group.position.set(x, 0, z)
   group.rotation.y = rotationY
 
   const pole = new THREE.Mesh(poleGeo, poleMat)
-  pole.position.y = 1.7
+  pole.position.y = 2.6
   group.add(pole)
 
+  const arm = new THREE.Mesh(armGeo, poleMat)
+  arm.rotation.x = Math.PI / 2
+  arm.position.set(0, 5.1, 3.25)
+  group.add(arm)
+
   const housing = new THREE.Mesh(housingGeo, housingMat)
-  housing.position.set(0, 3.5, 0.05)
+  housing.position.set(0, 4.75, 6.3)
   group.add(housing)
 
   const red = new THREE.Mesh(bulbGeo, redOffMat)
-  red.position.set(0, 3.82, 0.22)
+  red.position.set(0, 5.35, 6.55)
   const yellow = new THREE.Mesh(bulbGeo, yellowOffMat)
-  yellow.position.set(0, 3.5, 0.22)
+  yellow.position.set(0, 4.75, 6.55)
   const green = new THREE.Mesh(bulbGeo, greenOffMat)
-  green.position.set(0, 3.18, 0.22)
+  green.position.set(0, 4.15, 6.55)
   group.add(red, yellow, green)
 
   scene.add(group)

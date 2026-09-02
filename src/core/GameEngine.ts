@@ -124,9 +124,7 @@ export class GameEngine {
     }
     this.events = new EventManager(worldState)
 
-    for (const routeId of this.reputation.unlockedRoutes) {
-      for (const obj of this.city.barriersByRoute.get(routeId) ?? []) this.scene.remove(obj)
-    }
+    for (const routeId of this.reputation.unlockedRoutes) this.openRoute(routeId)
 
     this.audio.start()
 
@@ -374,6 +372,19 @@ export class GameEngine {
     this.input.endFrame()
   }
 
+  /**
+   * Removes a route's visual barrier AND its collider. The barrier's collider used to survive
+   * an unlock — an invisible radius-3 wall left sitting at the midpoint of every opened bridge,
+   * which is exactly where a car driving straight down it would hit it and stop dead.
+   */
+  private openRoute(routeId: string): void {
+    for (const obj of this.city.barriersByRoute.get(routeId) ?? []) this.scene.remove(obj)
+    for (let i = this.city.colliders.length - 1; i >= 0; i--) {
+      const c = this.city.colliders[i]
+      if (c.kind === 'barrier' && c.routeId === routeId) this.city.colliders.splice(i, 1)
+    }
+  }
+
   private applyCargoDamage(amount: number, retention: number, now: number, reason: string): void {
     const destroyed = this.orders.degradeCondition(amount, retention, now)
     if (destroyed.length === 0) return
@@ -449,7 +460,7 @@ export class GameEngine {
             kind: 'unlock',
             title: u.type === 'district' ? `District Unlocked: ${u.label}` : `Route Unlocked: ${u.label}`,
           })
-          for (const obj of this.city.barriersByRoute.get(u.id) ?? []) this.scene.remove(obj)
+          this.openRoute(u.id)
         }
         this.vehicle.setCarrying(this.orders.activeOrders().length)
         this.syncActive()
