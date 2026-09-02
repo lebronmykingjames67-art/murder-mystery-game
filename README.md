@@ -1,5 +1,7 @@
 # Delivery Rush
 
+This branch auto-deploys to Vercel on every push.
+
 A 3rd-person arcade delivery driving game, playable in the browser. You're a courier dropped into a five-district city with an ever-refilling order board: accept a job, drive to the pickup, hand it off, race the clock to the drop-off, get paid. Money buys faster vehicles and upgrades; Reputation is a one-way unlock track that opens new districts, shortcut routes, and harder contract tiers. Weather, traffic jams, road closures, rush hour, and flash VIP orders keep every shift different.
 
 Built from the [Delivery Rush game design document](.) as a full 3D chase-cam game: low-poly city built from primitives, an arcade vehicle-physics model, a road-graph + A* navigation layer, and a data-driven random-event system — per the doc's own recommended build order and technical architecture.
