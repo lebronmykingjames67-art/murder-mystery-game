@@ -228,3 +228,13 @@ export interface Collider {
   kind: 'building' | 'barrier' | 'prop'
   routeId?: string
 }
+
+// ---------------------------------------------------------------------------
+// Turn-by-turn navigation
+// ---------------------------------------------------------------------------
+
+export interface NavInfo {
+  maneuver: 'left' | 'right' | 'arrive'
+  distance: number
+  targetLabel: string
+}

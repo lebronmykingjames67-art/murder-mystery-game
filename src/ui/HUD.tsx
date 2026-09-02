@@ -2,6 +2,7 @@ import type { EngineRef } from '../App'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from '../core/time'
 import { Minimap } from './Minimap'
+import { Navigation } from './Navigation'
 import { OrderCard } from './OrderCard'
 
 interface Props {
@@ -74,6 +75,7 @@ export function HUD({ engine }: Props) {
       {interactPrompt && <div className="interact-prompt">{interactPrompt}</div>}
 
       <div className="hud-bottombar">
+        <Navigation />
         <div className="gauge-cluster">
           <div className="speed-gauge">
             <div className="speed-value">{speedMph}</div>

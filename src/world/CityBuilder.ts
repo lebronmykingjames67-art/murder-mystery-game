@@ -4,6 +4,7 @@ import { seededRandom } from '../core/RoadGraph'
 import { DISTRICTS } from '../data/districts'
 import type { Collider, DistrictDef, RoadNode } from '../types'
 import { makeLabelSprite } from './labels'
+import { buildTrafficLightRig, type TrafficLightRig } from '../systems/TrafficLightSystem'
 
 export interface DistrictBounds {
   id: string
@@ -21,6 +22,7 @@ export interface CityBuildResult {
   districtBounds: DistrictBounds[]
   depotPosition: { x: number; z: number }
   markerGroup: THREE.Group
+  trafficLights: TrafficLightRig[]
 }
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1)
@@ -47,6 +49,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
   const colliders: Collider[] = []
   const barriersByRoute = new Map<string, THREE.Object3D[]>()
   const districtBounds: DistrictBounds[] = []
+  const trafficLights: TrafficLightRig[] = []
   const markerGroup = new THREE.Group()
   markerGroup.name = 'order-markers'
   scene.add(markerGroup)
@@ -109,6 +112,23 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
       const head = new THREE.Mesh(LAMP_HEAD_GEO, headMat)
       head.position.set(node.x + offset, 4.6, node.z + offset)
       scene.add(head)
+    }
+
+    // Traffic signals at roughly half of interior (true 4-way) intersections.
+    const lightRand = seededRandom(`${district.id}_lights`)
+    for (const node of graph.nodes.values()) {
+      if (node.districtId !== district.id || node.poiName) continue
+      const col = Math.round((node.x - district.origin.x) / district.blockSize)
+      const row = Math.round((node.z - district.origin.z) / district.blockSize)
+      const isInterior = col > 0 && row > 0 && col < district.gridCols - 1 && row < district.gridRows - 1
+      if (!isInterior) continue
+      if (lightRand() < 0.5) continue
+      const cornerOffset = district.blockSize * 0.28
+      const cx = node.x + cornerOffset
+      const cz = node.z + cornerOffset
+      const rotationY = Math.atan2(node.x - cx, node.z - cz)
+      const phaseOffset = lightRand() * 40
+      trafficLights.push(buildTrafficLightRig(scene, node.id, cx, cz, rotationY, phaseOffset))
     }
   }
 
@@ -195,7 +215,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
     colliders.push({ x: mx, z: mz, radius: 3, kind: 'barrier', routeId: edge.unlockRouteId })
   }
 
-  return { colliders, barriersByRoute, districtBounds, depotPosition: { x: depot.x, z: depot.z }, markerGroup }
+  return { colliders, barriersByRoute, districtBounds, depotPosition: { x: depot.x, z: depot.z }, markerGroup, trafficLights }
 }
 
 export function districtAt(bounds: DistrictBounds[], x: number, z: number): string | null {

@@ -132,7 +132,7 @@ export class PlayerVehicle {
       this.boostMeter = Math.min(100, this.boostMeter + 8 * dt)
     }
 
-    const steerInput = (input.right ? 1 : 0) - (input.left ? 1 : 0)
+    const steerInput = (input.left ? 1 : 0) - (input.right ? 1 : 0)
     const speedFactor = THREE.MathUtils.clamp(Math.abs(this.speed) / Math.max(1, stats.topSpeed * 0.35), 0.12, 1)
     const handlingMul = modifiers.handling * (input.handbrake ? 1.7 : 1)
     const dir = this.speed < 0 ? -1 : 1

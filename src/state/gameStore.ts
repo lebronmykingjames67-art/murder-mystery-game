@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { GameEvent } from '../systems/EventManager'
-import type { GlobalModifiers, Order, UpgradeSlotType, VehicleTierId } from '../types'
+import type { GlobalModifiers, NavInfo, Order, UpgradeSlotType, VehicleTierId } from '../types'
 
 export type ScreenId = 'none' | 'orderBoard' | 'shop' | 'map' | 'pause'
 
@@ -27,6 +27,7 @@ export interface GameStoreState {
   districtName: string
   isNight: number
   interactPrompt: string | null
+  navInfo: NavInfo | null
 
   // Occasional, updated at mutation points.
   cash: number
@@ -71,6 +72,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   districtName: 'Downtown Core',
   isNight: 0,
   interactPrompt: null,
+  navInfo: null,
 
   cash: 0,
   rep: 0,

@@ -1,12 +1,17 @@
 import * as THREE from 'three'
 import type { RoadGraph } from '../core/RoadGraph'
 import type { RoadEdge } from '../types'
+import type { TrafficLightSystem } from '../systems/TrafficLightSystem'
 
 const TRAFFIC_COLORS = [0xcc3f3f, 0x3f7fcc, 0xd9c93f, 0x7a7a7a, 0x3fa85a, 0xd98a3f]
 const RECYCLE_RADIUS = 260
-const AGENT_COUNT = 14
+const AGENT_COUNT = 22
+const STOP_LINE = 0.86
 
-function buildTrafficCarMesh(color: number): { group: THREE.Group; wheels: THREE.Mesh[] } {
+const brakeOffMat = new THREE.MeshStandardMaterial({ color: 0x330000, roughness: 0.8 })
+const brakeOnMat = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 1.5 })
+
+function buildTrafficCarMesh(color: number): { group: THREE.Group; wheels: THREE.Mesh[]; brakeLights: THREE.Mesh[] } {
   const group = new THREE.Group()
   const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.6 })
   const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1b1f24, roughness: 0.4 })
@@ -32,7 +37,17 @@ function buildTrafficCarMesh(color: number): { group: THREE.Group; wheels: THREE
     group.add(w)
     wheels.push(w)
   }
-  return { group, wheels }
+
+  const brakeGeo = new THREE.BoxGeometry(0.32, 0.14, 0.08)
+  const brakeLights: THREE.Mesh[] = []
+  for (const x of [-0.55, 0.55]) {
+    const b = new THREE.Mesh(brakeGeo, brakeOffMat)
+    b.position.set(x, 0.5, -1.58)
+    group.add(b)
+    brakeLights.push(b)
+  }
+
+  return { group, wheels, brakeLights }
 }
 
 class TrafficAgent {
@@ -41,17 +56,20 @@ class TrafficAgent {
   heading = 0
   readonly group: THREE.Group
   wheels: THREE.Mesh[]
+  brakeLights: THREE.Mesh[]
   atNode: string
   edge: RoadEdge
   target: string
   progress = 0
   speed: number
+  braking = false
 
   constructor(scene: THREE.Scene, atNode: string, edge: RoadEdge) {
     const color = TRAFFIC_COLORS[Math.floor(Math.random() * TRAFFIC_COLORS.length)]
     const built = buildTrafficCarMesh(color)
     this.group = built.group
     this.wheels = built.wheels
+    this.brakeLights = built.brakeLights
     scene.add(this.group)
     this.atNode = atNode
     this.edge = edge
@@ -112,12 +130,21 @@ export class TrafficManager {
     agent.progress = 0
   }
 
-  update(dt: number, playerX: number, playerZ: number, unlockedDistricts: Set<string>): void {
+  update(dt: number, playerX: number, playerZ: number, unlockedDistricts: Set<string>, lights?: TrafficLightSystem): void {
     for (const agent of this.agents) {
       const from = this.graph.getNode(agent.atNode)!
       const to = this.graph.getNode(agent.target)!
       const length = Math.max(0.001, Math.hypot(to.x - from.x, to.z - from.z))
       agent.progress += (agent.speed * dt) / length
+
+      const lightState = lights?.stateAt(agent.target)
+      const held = (lightState === 'red' || lightState === 'yellow') && agent.progress > STOP_LINE
+      if (held) agent.progress = STOP_LINE
+      if (agent.braking !== held) {
+        agent.braking = held
+        for (const b of agent.brakeLights) b.material = held ? brakeOnMat : brakeOffMat
+      }
+
       if (agent.progress >= 1) this.advance(agent, unlockedDistricts)
 
       const t = THREE.MathUtils.clamp(agent.progress, 0, 1)
@@ -126,7 +153,7 @@ export class TrafficManager {
       agent.heading = Math.atan2(to.x - from.x, to.z - from.z)
       agent.group.position.set(agent.x, 0, agent.z)
       agent.group.rotation.y = agent.heading
-      const spin = agent.speed * dt * 1.6
+      const spin = held ? 0 : agent.speed * dt * 1.6
       for (const w of agent.wheels) w.rotation.x += spin
 
       const distToPlayer = Math.hypot(agent.x - playerX, agent.z - playerZ)

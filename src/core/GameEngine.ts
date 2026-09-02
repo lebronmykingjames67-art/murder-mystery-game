@@ -13,13 +13,15 @@ import type { OrderSystemEvent } from '../systems/OrderSystem'
 import { EventManager } from '../systems/EventManager'
 import type { EventWorldState, GameEvent } from '../systems/EventManager'
 import { ReputationSystem } from '../systems/ReputationSystem'
+import { TrafficLightSystem } from '../systems/TrafficLightSystem'
 import { computeEffectiveStats, nextUpgradeCost, vehicleDef } from '../systems/UpgradeSystem'
 import { VEHICLES } from '../data/vehicles'
 import { DISTRICTS } from '../data/districts'
 import { loadSave, writeSave, SAVE_VERSION } from './SaveSystem'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from './time'
-import type { Order, SaveData, UpgradeSlotType, VehicleTierId } from '../types'
+import type { PathResult } from './RoadGraph'
+import type { NavInfo, Order, SaveData, UpgradeSlotType, VehicleTierId } from '../types'
 
 const DEPOT_RADIUS = 10
 const AUTOSAVE_INTERVAL = 12
@@ -37,6 +39,7 @@ export class GameEngine {
   private readonly orders = new OrderSystem()
   private readonly events: EventManager
   private readonly traffic: TrafficManager
+  private readonly trafficLights: TrafficLightSystem
   private readonly vehicle: PlayerVehicle
   private readonly sun: THREE.DirectionalLight
   private readonly ambient: THREE.AmbientLight
@@ -82,6 +85,7 @@ export class GameEngine {
     this.scene.add(this.sun)
 
     this.city = buildCity(this.scene, this.graph)
+    this.trafficLights = new TrafficLightSystem(this.city.trafficLights)
 
     this.vehicle = new PlayerVehicle(this.scene, VEHICLES[this.equippedVehicle])
     const depotNode = this.graph.depotNode()
@@ -265,7 +269,8 @@ export class GameEngine {
     }
     if (result.hardImpact) this.applyCargoDamage(34, effective.fragileRetention, elapsed, 'drove too rough')
 
-    this.traffic.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts)
+    this.trafficLights.update(elapsed)
+    this.traffic.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts, this.trafficLights)
     for (const t of this.traffic.positions()) {
       const dist = Math.hypot(t.x - this.vehicle.x, t.z - this.vehicle.z)
       if (dist < 2.6) {
@@ -524,18 +529,28 @@ export class GameEngine {
         this.routeLine.geometry.dispose()
         this.routeLine = null
       }
+      useGameStore.setState({ navInfo: null })
       return
     }
     const targetNodeId = order.state === 'toPickup' ? order.pickupNodeId : order.dropoffNodeId
+    const targetLabel = order.state === 'toPickup' ? order.pickupLabel : order.dropoffLabel
     const startNode = this.graph.nearestNode(this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts)
     if (this.routeLine) {
       this.scene.remove(this.routeLine)
       this.routeLine.geometry.dispose()
       this.routeLine = null
     }
-    if (!startNode) return
+    if (!startNode) {
+      useGameStore.setState({ navInfo: null })
+      return
+    }
     const path = this.graph.findPath(startNode.id, targetNodeId, { vehicleTier: this.equippedVehicle, unlockedRoutes: this.reputation.unlockedRoutes })
-    if (!path || path.nodeIds.length < 2) return
+    if (!path || path.nodeIds.length < 2) {
+      const targetNode = this.graph.getNode(targetNodeId)
+      const distance = targetNode ? Math.hypot(targetNode.x - this.vehicle.x, targetNode.z - this.vehicle.z) : 0
+      useGameStore.setState({ navInfo: { maneuver: 'arrive', distance, targetLabel } })
+      return
+    }
     const points = path.nodeIds.map((id) => {
       const n = this.graph.getNode(id)!
       return new THREE.Vector3(n.x, 0.6, n.z)
@@ -544,6 +559,27 @@ export class GameEngine {
     const color = order.state === 'toPickup' ? 0xffcc33 : 0x33cc66
     this.routeLine = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color }))
     this.scene.add(this.routeLine)
+
+    useGameStore.setState({ navInfo: this.computeNavInfo(path, targetLabel) })
+  }
+
+  /** Walks the path from the player's position to the first real turn (or straight to arrival) for the nav panel. */
+  private computeNavInfo(path: PathResult, targetLabel: string): NavInfo {
+    const nodes = path.nodeIds.map((id) => this.graph.getNode(id)!)
+    let distance = Math.hypot(nodes[0].x - this.vehicle.x, nodes[0].z - this.vehicle.z)
+    for (let i = 1; i < nodes.length - 1; i++) {
+      const inHeading = Math.atan2(nodes[i].x - nodes[i - 1].x, nodes[i].z - nodes[i - 1].z)
+      const outHeading = Math.atan2(nodes[i + 1].x - nodes[i].x, nodes[i + 1].z - nodes[i].z)
+      let delta = outHeading - inHeading
+      while (delta > Math.PI) delta -= Math.PI * 2
+      while (delta < -Math.PI) delta += Math.PI * 2
+      if (Math.abs(delta) > Math.PI / 4) {
+        return { maneuver: delta > 0 ? 'left' : 'right', distance, targetLabel }
+      }
+      distance += Math.hypot(nodes[i + 1].x - nodes[i].x, nodes[i + 1].z - nodes[i].z)
+    }
+    distance += Math.hypot(nodes[nodes.length - 1].x - nodes[nodes.length - 2].x, nodes[nodes.length - 1].z - nodes[nodes.length - 2].z)
+    return { maneuver: 'arrive', distance, targetLabel }
   }
 
   private computeInteractPrompt(driving: boolean): string | null {
