@@ -4,7 +4,7 @@ import type { RoadGraph } from '../core/RoadGraph'
 const SKIN_TONES = [0xe0a978, 0xc68642, 0x8d5524, 0xffdbac, 0xf1c27d]
 const OUTFIT_COLORS = [0x2f6fe0, 0xd6432b, 0x2d8f4e, 0xe0b93a, 0x9b7fd1, 0x5a5a5a, 0xff8a3c]
 const RECYCLE_RADIUS = 200
-const AGENT_COUNT = 16
+const AGENT_COUNT = 20
 const SIDEWALK_OFFSET = 5.5
 
 function buildPedestrianMesh(): THREE.Group {

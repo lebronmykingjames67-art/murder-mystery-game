@@ -7,6 +7,7 @@ const TRAFFIC_COLORS = [0xcc3f3f, 0x3f7fcc, 0xd9c93f, 0x7a7a7a, 0x3fa85a, 0xd98a
 const RECYCLE_RADIUS = 260
 const AGENT_COUNT = 22
 const STOP_LINE = 0.86
+const LANE_OFFSET = 2.1
 
 const brakeOffMat = new THREE.MeshStandardMaterial({ color: 0x330000, roughness: 0.8 })
 const brakeOnMat = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 1.5 })
@@ -151,7 +152,12 @@ export class TrafficManager {
       agent.x = THREE.MathUtils.lerp(from.x, to.x, t)
       agent.z = THREE.MathUtils.lerp(from.z, to.z, t)
       agent.heading = Math.atan2(to.x - from.x, to.z - from.z)
-      agent.group.position.set(agent.x, 0, agent.z)
+      // Offset the visible car to its lane (left of travel direction) so opposing traffic doesn't share the centerline.
+      const dirX = (to.x - from.x) / length
+      const dirZ = (to.z - from.z) / length
+      const laneX = agent.x + dirZ * LANE_OFFSET
+      const laneZ = agent.z - dirX * LANE_OFFSET
+      agent.group.position.set(laneX, 0, laneZ)
       agent.group.rotation.y = agent.heading
       const spin = held ? 0 : agent.speed * dt * 1.6
       for (const w of agent.wheels) w.rotation.x += spin

@@ -337,6 +337,7 @@ export class GameEngine {
     this.camera.setFocusMode(this.vehicle.character.isBusy())
     const speedFraction = Math.min(1, Math.abs(this.vehicle.speed) / Math.max(1, effective.topSpeed))
     this.camera.update(dt, { x: this.vehicle.x, z: this.vehicle.z, heading: this.vehicle.heading }, speedFraction)
+    this.clampCameraFromBuildings()
     this.camera.setAspect(this.renderer.domElement.clientWidth / Math.max(1, this.renderer.domElement.clientHeight))
 
     this.audio.setEngineNote(speedFraction)
@@ -655,6 +656,46 @@ export class GameEngine {
 
     this.lastIsNight = isNight
     return { isNight }
+  }
+
+  /**
+   * The chase camera is a pure spring-arm lerp with no awareness of geometry, so on a sharp turn
+   * next to a building it can lag into the wall — from inside, backface culling makes the wall
+   * disappear entirely. Pull the camera back along its own line-of-sight to just in front of the
+   * nearest building it's about to clip through.
+   */
+  private clampCameraFromBuildings(): void {
+    const camPos = this.camera.camera.position
+    const targetX = this.vehicle.x
+    const targetZ = this.vehicle.z
+    const dx = camPos.x - targetX
+    const dz = camPos.z - targetZ
+    const dist = Math.hypot(dx, dz)
+    if (dist < 0.001) return
+    const dirX = dx / dist
+    const dirZ = dz / dist
+
+    let maxDist = dist
+    for (const c of this.city.colliders) {
+      if (c.kind !== 'building') continue
+      const toX = c.x - targetX
+      const toZ = c.z - targetZ
+      const proj = toX * dirX + toZ * dirZ
+      if (proj <= 0 || proj >= dist) continue
+      const closestX = targetX + dirX * proj
+      const closestZ = targetZ + dirZ * proj
+      const lateral = Math.hypot(c.x - closestX, c.z - closestZ)
+      if (lateral < c.radius) {
+        const penetration = Math.sqrt(Math.max(0, c.radius * c.radius - lateral * lateral))
+        const hitDist = Math.max(1, proj - penetration)
+        if (hitDist < maxDist) maxDist = hitDist
+      }
+    }
+
+    if (maxDist < dist) {
+      camPos.x = targetX + dirX * maxDist
+      camPos.z = targetZ + dirZ * maxDist
+    }
   }
 
   private updateCountdownHeartbeat(elapsed: number): void {

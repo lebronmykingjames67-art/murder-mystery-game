@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { RoadGraph } from '../core/RoadGraph'
 import { seededRandom } from '../core/RoadGraph'
-import { DISTRICTS } from '../data/districts'
+import { CONNECTORS, DISTRICTS } from '../data/districts'
 import type { Collider, DistrictDef, RoadNode } from '../types'
 import { makeLabelSprite } from './labels'
 import { buildTrafficLightRig, type TrafficLightRig } from '../systems/TrafficLightSystem'
@@ -85,6 +85,16 @@ const tmpScale = new THREE.Vector3()
 const UP = new THREE.Vector3(0, 1, 0)
 const tmpColor = new THREE.Color()
 
+/** World positions, within one district, where a connector bridge lands — kept clear of buildings so the approach isn't blocked. */
+function connectorEntryPoints(district: DistrictDef): { x: number; z: number }[] {
+  const points: { x: number; z: number }[] = []
+  for (const c of CONNECTORS) {
+    if (c.fromDistrict === district.id) points.push({ x: district.origin.x + c.fromGrid[0] * district.blockSize, z: district.origin.z + c.fromGrid[1] * district.blockSize })
+    if (c.toDistrict === district.id) points.push({ x: district.origin.x + c.toGrid[0] * district.blockSize, z: district.origin.z + c.toGrid[1] * district.blockSize })
+  }
+  return points
+}
+
 function districtBoundsOf(district: DistrictDef): DistrictBounds {
   const margin = district.blockSize * 0.6
   const minX = district.origin.x - margin
@@ -125,6 +135,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
     const depot = graph.depotNode()
     const skipDensity = district.sparse ? 0.45 : 0.12
     const isResidential = district.id === 'suburbs'
+    const entryPoints = connectorEntryPoints(district)
 
     const avgHeight = (district.minBuildingHeight + district.maxBuildingHeight) / 2
     const windowTex = baseWindowTexture.clone()
@@ -136,6 +147,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
         const cx = district.origin.x + (col + 0.5) * district.blockSize
         const cz = district.origin.z + (row + 0.5) * district.blockSize
         if (Math.hypot(cx - depot.x, cz - depot.z) < district.blockSize * 1.05) continue
+        if (entryPoints.some((p) => Math.hypot(cx - p.x, cz - p.z) < district.blockSize * 1.3)) continue
         if (rand() < skipDensity) continue
 
         const footprint = district.blockSize * (0.45 + rand() * 0.28)
@@ -190,7 +202,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
       const row = Math.round((node.z - district.origin.z) / district.blockSize)
       const isInterior = col > 0 && row > 0 && col < district.gridCols - 1 && row < district.gridRows - 1
       if (!isInterior) continue
-      if (lightRand() < 0.5) continue
+      if (lightRand() < 0.4) continue
       const cornerOffset = district.blockSize * 0.28
       const cx = node.x + cornerOffset
       const cz = node.z + cornerOffset
@@ -224,6 +236,76 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
   roadMesh.instanceMatrix.needsUpdate = true
   if (roadMesh.instanceColor) roadMesh.instanceColor.needsUpdate = true
   scene.add(roadMesh)
+
+  // ---- Lane markings: dashed centerline per edge, splitting each road into left/right lanes ----
+  const laneMat = new THREE.MeshStandardMaterial({ color: 0xf2d24a, emissive: 0xf2d24a, emissiveIntensity: 0.35, roughness: 0.6 })
+  const dashPlans = edgeList.map((edge) => {
+    const from = graph.getNode(edge.from)!
+    const to = graph.getNode(edge.to)!
+    const length = Math.hypot(to.x - from.x, to.z - from.z)
+    return { from, to, isConnector: edge.isConnector, count: Math.max(2, Math.floor(length / 6)) }
+  })
+  const totalDashes = dashPlans.reduce((sum, p) => sum + p.count, 0)
+  const laneMesh = new THREE.InstancedMesh(UNIT_BOX, laneMat, totalDashes)
+  let dashIndex = 0
+  for (const plan of dashPlans) {
+    const dx = plan.to.x - plan.from.x
+    const dz = plan.to.z - plan.from.z
+    const angle = Math.atan2(dx, dz)
+    for (let i = 0; i < plan.count; i++) {
+      const t = (i + 0.5) / plan.count
+      tmpPos.set(plan.from.x + dx * t, plan.isConnector ? 0.19 : 0.11, plan.from.z + dz * t)
+      tmpQuat.setFromAxisAngle(UP, angle)
+      tmpScale.set(0.3, 0.02, 2.2)
+      tmpMatrix.compose(tmpPos, tmpQuat, tmpScale)
+      laneMesh.setMatrixAt(dashIndex, tmpMatrix)
+      dashIndex++
+    }
+  }
+  laneMesh.instanceMatrix.needsUpdate = true
+  scene.add(laneMesh)
+
+  // ---- Connector bridges: guardrails + lamp posts along the full span ----
+  const railMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.5, metalness: 0.3 })
+  const bridgeLampPoleMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a })
+  const bridgeLampHeadMat = new THREE.MeshStandardMaterial({ color: 0xfff2c8, emissive: 0xffdf8a, emissiveIntensity: 1 })
+  for (const edge of graph.edges.values()) {
+    if (!edge.isConnector) continue
+    const from = graph.getNode(edge.from)!
+    const to = graph.getNode(edge.to)!
+    const dx = to.x - from.x
+    const dz = to.z - from.z
+    const length = Math.hypot(dx, dz)
+    const angle = Math.atan2(dx, dz)
+    const perpX = dz / length
+    const perpZ = -dx / length
+    const halfWidth = 5.6
+
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(UNIT_BOX, railMat)
+      rail.scale.set(0.3, 1.1, length)
+      rail.position.set((from.x + to.x) / 2 + perpX * halfWidth * side, 0.65, (from.z + to.z) / 2 + perpZ * halfWidth * side)
+      rail.rotation.y = angle
+      scene.add(rail)
+    }
+
+    const lampCount = Math.max(2, Math.floor(length / 26))
+    for (let i = 0; i < lampCount; i++) {
+      const t = (i + 0.5) / lampCount
+      const px = from.x + dx * t
+      const pz = from.z + dz * t
+      const side = i % 2 === 0 ? 1 : -1
+      const lx = px + perpX * halfWidth * side
+      const lz = pz + perpZ * halfWidth * side
+      const pole = new THREE.Mesh(LAMP_POLE_GEO, bridgeLampPoleMat)
+      pole.scale.set(1, 5.5, 1)
+      pole.position.set(lx, 2.75, lz)
+      scene.add(pole)
+      const head = new THREE.Mesh(LAMP_HEAD_GEO, bridgeLampHeadMat)
+      head.position.set(lx, 5.6, lz)
+      scene.add(head)
+    }
+  }
 
   // ---- Depot landmark ----
   const depot = graph.depotNode()
