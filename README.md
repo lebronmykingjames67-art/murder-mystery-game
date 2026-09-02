@@ -1,8 +1,8 @@
-# The Grand Meridian
+# Delivery Rush
 
-A noir hotel murder mystery detective game, playable in the browser. Julian Voss, a wealthy hotel investor, has been found dead in Room 412. The hotel is sealed for the night — nobody in, nobody out. Explore all seven floors of The Grand Meridian, question five suspects, collect evidence into your detective's notebook, and make your final accusation before dawn.
+A 3rd-person arcade delivery driving game, playable in the browser. You're a courier dropped into a five-district city with an ever-refilling order board: accept a job, drive to the pickup, hand it off, race the clock to the drop-off, get paid. Money buys faster vehicles and upgrades; Reputation is a one-way unlock track that opens new districts, shortcut routes, and harder contract tiers. Weather, traffic jams, road closures, rush hour, and flash VIP orders keep every shift different.
 
-Built as a 2.5D point-and-click investigation game: a central elevator hub, corridor floor plans, clickable room scenes, and branching "present evidence" dialogue — per the design in the original game doc.
+Built from the [Delivery Rush game design document](.) as a full 3D chase-cam game: low-poly city built from primitives, an arcade vehicle-physics model, a road-graph + A* navigation layer, and a data-driven random-event system — per the doc's own recommended build order and technical architecture.
 
 ## Playing
 
@@ -11,50 +11,63 @@ npm install
 npm run dev
 ```
 
-Then open the printed local URL. Progress autosaves to `localStorage`, so you can close the tab and pick up later from the main menu's "Continue Investigation."
+Then open the printed local URL and click **Start Shift**. Progress (cash, Rep, owned vehicles/upgrades, unlocked districts/routes) autosaves to `localStorage`.
+
+## Controls
+
+| Input | Action |
+|---|---|
+| W A S D / Arrow keys | Steer / accelerate / brake |
+| Space | Handbrake / drift |
+| Shift | Boost |
+| E | Interact — pick up, deliver, or open the Depot shop when in range |
+| Tab | Order Board |
+| M | City Map |
+| Esc | Pause |
 
 ## How it plays
 
-- **Elevator** is the hub — pick a floor. Some floors are locked until you've made enough progress.
-- **Floor plans** show every door on that floor. Most are flavor (knock, nothing there); a handful are real rooms with things to find.
-- **Rooms** have clickable hotspots: physical evidence, notes, and people to talk to.
-- **Dialogue** is topic-based, Ace-Attorney style: ask suspects about topics, and present evidence from your notebook to get reactions, break alibis, and unlock the truth.
-- **Notebook** (top right) has three tabs: **Clues** (with automatic contradiction-flagging once you've collected both sides of a lie), **Suspects** (dossiers that fill in as you learn more), and **Timeline** (the night reconstructed — gaps show as "???" until you find the evidence to fill them).
-- **Accusation** is available any time from the Lobby. Name the killer, the weapon, and the motive. Get it wrong and the detective explains why — no permanent fail state, just go back and keep digging.
+- **Order Board** (Tab) lists 3–5 live jobs; accepting one shows a marker on your minimap and a live route line drawn along the actual road graph. Your cargo capacity (starting at 1) caps how many you can carry at once — a bigger vehicle or Cargo Rig upgrade lets you batch multiple deliveries into one efficient loop.
+- **Pickup/drop-off** is a short, lightweight beat: get close, press E, your rider dismounts and jogs to the door while the camera pulls in tighter, then remounts. Fragile/Cold cargo has a condition stat that degrades on hard collisions — deliver it rough and the payout (and eventually the order itself) suffers.
+- **Payout** = base pay + a tip that decays the longer you take, with a VIP bonus and a late penalty (floored around 20% of base — a late delivery still pays something). A small bonus rewards juggling multiple concurrent orders.
+- **Reputation** is earned per delivery (bonus for on-time, bigger for VIP) and gates the map: four more districts (Old Town, Suburbs, Industrial Docks, Uptown/Financial) sit behind locked connector roads — physically barricaded in the world — that open as your Rep climbs, plus a Rep-gated shortcut alley in Old Town. Check the City Map (M) to see what's unlocked and what's next.
+- **The Depot** (the glowing pad at the center of Downtown Core) is your hub: buy and equip one of six vehicle tiers (bicycle → e-bike → scooter → motorbike → car → van) and spend cash on four upgrade slots per vehicle (Engine, Tires, Cargo, Utility).
+- **Random events** roll every ~60–95s (plus Rush Hour on a fixed timer): rainstorms, traffic jams, road closures, VIP flash orders, and mystery-box order waves, each modifying navigation, timing, payout, or handling.
+- A day/night cycle lights the city over an ~8-minute loop; night drives pay a little more and see a little less.
 
 ## Tech stack
 
-- React 19 + TypeScript + Vite
-- Zustand for game state, persisted to `localStorage`
-- No game engine, no external art assets — rooms and clue icons are generated with stylized inline SVG/CSS so the whole hotel reads as one consistent illustrated world
-- All content (rooms, hotspots, clues, dialogue trees, timeline, chapter gating, the case solution) is plain data in `src/data/`, evaluated by a small condition/dialogue engine in `src/engine/` — adding a room or a line of dialogue never requires touching UI code
+- React 19 + TypeScript + Vite for the app shell and UI overlay
+- **Three.js** for the 3D world — low-poly primitives only, no external model/texture assets, so the whole city is generated in code
+- Zustand as the one-way bridge from the imperative game engine to the React HUD
+- All game feel — engine note, pickup/drop-off chimes, the payout "cha-ching" (pitch/volume scaled to payout size), countdown heartbeat, event stings — is synthesized live via the WebAudio API; there are no binary audio assets
 
 ## Project structure
 
+Mirrors the GDD's suggested architecture:
+
 ```
 src/
-  types/          Core domain types (Clue, Suspect, DialogueTopic, Room, Floor, ...)
-  data/            All game content: hotel.ts (map), clues.ts, suspects.ts,
-                    timeline.ts, chapters.ts, case.ts (solution + rebuttals),
-                    dialogue/ (one file per suspect)
-  engine/          Pure functions: flag/clue condition evaluation, dialogue
-                    resolution, room lock state
-  state/           Zustand store (gameStore.ts) + localStorage persistence
-  components/      UI, organized by feature (elevator, floor, room, dialogue,
-                    notebook, accusation, intro, layout, art)
-  styles/          Hand-written CSS (no framework), one file per feature area
-scripts/
-  audit.ts         `npm run audit:content` — cross-checks every hand-authored
-                    string reference (flags, clue ids, suspect ids, room ids)
-                    against what the data actually defines, so a typo in a
-                    flag name can't silently break chapter gating or a locked
-                    door again
+  core/       GameEngine (orchestrates everything per frame), GameLoop, RoadGraph (node/edge
+              graph + A*), ChaseCamera, InputManager, AudioManager, SaveSystem
+  entities/   PlayerVehicle (arcade physics), Character (3rd-person rider + dismount beat),
+              VehicleMesh (low-poly builder per vehicle tier), TrafficAgent (AI traffic)
+  systems/    OrderSystem, PayoutSystem, ReputationSystem, UpgradeSystem, EventManager
+              (data-driven GameEvent objects with condition/apply/revert)
+  world/      CityBuilder (procedural city geometry from RoadGraph + district data), labels
+  data/       vehicles.ts, districts.ts, events.ts, orderPools.ts — all game tuning as data
+  state/      gameStore.ts (Zustand store the engine writes into every frame/mutation)
+  ui/         HUD, OrderBoard, ShopScreen, MapScreen, Minimap, PauseMenu, StartScreen, Toasts
 ```
 
-## The case
+The engine layer (`core/`, `entities/`, `systems/`, `world/`) is plain TypeScript with no React dependency; `App.tsx` mounts a `<canvas>`, constructs `GameEngine` on it, and everything else is a React overlay reading from the Zustand store.
 
-Five suspects, one of them lying about more than the others. The solution (killer, weapon, motive) lives entirely in `src/data/case.ts` — everything else in the dialogue and clue data was written to support that one solution, so if you want to change who did it, that's the file to start from (though dialogue reactions are written suspect-specific, so swapping the killer isn't just a one-line change).
+## Scope notes — what's simplified from the full design doc
 
-## What's not built
+Built out well past the doc's own MVP cut (§14: one district, no events, flat payouts) but still scoped down in a few places for an AI-authored, single-pass build:
 
-The original design doc's "optional fun extras" — a randomized New-Game+ killer mode, achievements beyond the two shown on the ending screen, a headline ticker — were left out to keep the core mystery (map, cast, evidence, dialogue, notebook, accusation) complete and polished rather than spreading thinner across stretch goals. The stairwell is implemented as a real room with a clue rather than a full secondary traversal route between floors.
+- **World**: all 5 districts are procedurally generated and reachable (not just 1), but they're stitched in a cross layout around the Depot rather than needing to individually hand-place every road; the Night District is a lighting mode (day/night cycle + a modest payout/visibility swing) applied to the existing city rather than a seventh separate map, exactly as the doc itself suggests as a cost-saving option.
+- **Random events**: 6 of the 10 listed events are implemented (Rainstorm, Traffic Jam, Road Closure, Rush Hour, VIP Flash Order, Mystery Box), covering all four required effect categories (navigation/timing/payout/handling). Pothole Patch, Bike Thief, Street Festival, and Power Outage are natural follow-ons on the same `EventManager` (condition/apply/revert) pattern.
+- **Multi-stop orders**: rather than a single order with several internal stops, "multi-stop" is the emergent result of carrying several concurrent single-stop orders (raised cargo capacity) and choosing your own route between them — with a small payout bonus for juggling more than one at a time. Orders are still flagged `isMultiStop` in the data model for a future dedicated implementation.
+- **Upgrade slots**: each vehicle has all four slot types from the doc (Engine, Tires, Cargo, Utility) with 3 levels each, but each slot is a single upgrade path rather than a branching either/or choice.
+- **Assets**: everything is low-poly primitives and procedural geometry/audio, per the doc's own guidance that this keeps asset production tractable for an AI-authored codebase — no GLTF models or audio files to source.

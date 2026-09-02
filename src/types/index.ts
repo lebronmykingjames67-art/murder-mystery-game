@@ -1,232 +1,230 @@
-// Core domain types for The Grand Meridian.
-// Content (rooms, clues, dialogue, suspects) is authored as data against these
-// shapes, so new rooms/suspects/lines can be added without touching engine code.
+// Core domain types shared across core/, entities/, systems/, ui/.
+// Kept engine-agnostic (no Three.js imports) so systems stay easily testable.
 
-export type FlagId = string;
-export type ClueId = string;
-export type SuspectId = string;
-export type RoomId = string;
-export type FloorId = string;
-
-// ---------------------------------------------------------------------------
-// Clues / evidence
-// ---------------------------------------------------------------------------
-
-export type ClueCategory = 'physical' | 'testimonial';
-
-export interface Clue {
-  id: ClueId;
-  name: string;
-  category: ClueCategory;
-  icon: string; // key into the clue icon registry (art/ClueIcon.tsx)
-  shortDescription: string; // one-liner shown on pickup toast + notebook grid
-  detail: string; // full notebook entry text
-  foundIn: string; // human-readable location, for flavor ("Room 412, victim's desk")
-  relatedSuspects?: SuspectId[];
-}
-
-export interface Contradiction {
-  id: string;
-  clueIds: [ClueId, ClueId];
-  title: string;
-  explanation: string;
-  unlocksFlag?: FlagId; // set automatically once both clues are collected
+export interface Vec2 {
+  x: number
+  z: number
 }
 
 // ---------------------------------------------------------------------------
-// Suspects & dossiers
+// Road graph
 // ---------------------------------------------------------------------------
 
-export interface DossierField {
-  id: string;
-  label: string;
-  text: string;
-  requiresFlags?: FlagId[];
+export interface RoadNode {
+  id: string
+  x: number
+  z: number
+  districtId: string
+  /** True for real intersections; false for mid-block filler nodes (rare). */
+  isIntersection: boolean
+  /** Interesting nodes eligible as pickup/dropoff/depot points. */
+  isPOI: boolean
+  poiName?: string
 }
 
-export interface Suspect {
-  id: SuspectId;
-  name: string;
-  alias?: string;
-  role: string;
-  colorTag: string; // hex accent used for portrait/frame theming
-  initials: string;
-  bio: string;
-  isKiller: boolean;
-  dossierFields: DossierField[];
-}
+export type VehicleTierId = 'bicycle' | 'ebike' | 'scooter' | 'motorbike' | 'car' | 'van'
 
-// ---------------------------------------------------------------------------
-// Dialogue
-// ---------------------------------------------------------------------------
-
-export type Speaker = 'suspect' | 'detective' | 'narration';
-
-export interface DialogueLine {
-  speaker: Speaker;
-  text: string;
-}
-
-export interface DialogueVariant {
-  id: string;
-  requiresFlags?: FlagId[];
-  forbidsFlags?: FlagId[];
-  requiresClues?: ClueId[];
-  lines: DialogueLine[];
-  setsFlags?: FlagId[];
-  addsClues?: ClueId[];
-}
-
-export interface DialogueTopic {
-  id: string;
-  label: string;
-  requiresFlags?: FlagId[];
-  forbidsFlags?: FlagId[];
-  requiresClues?: ClueId[];
-  variants: DialogueVariant[]; // first variant whose conditions pass is used
-}
-
-export interface EvidenceEntry {
-  clueId: ClueId;
-  variants: DialogueVariant[];
-}
-
-export interface GreetingVariant {
-  requiresFlags?: FlagId[];
-  forbidsFlags?: FlagId[];
-  lines: DialogueLine[];
-  setsFlags?: FlagId[];
-}
-
-export interface SuspectDialogue {
-  suspectId: SuspectId;
-  greetings: GreetingVariant[]; // first match wins; last should be unconditional fallback
-  topics: DialogueTopic[];
-  evidence: EvidenceEntry[];
-  defaultEvidenceReaction: DialogueLine[]; // used when a presented clue has no specific entry
-  farewell: string;
-  unavailable?: {
-    // shown instead of a conversation if requiresFlags below aren't met (e.g. not discovered yet)
-    requiresFlags?: FlagId[];
-    text: string;
-  };
+export interface RoadEdge {
+  id: string
+  from: string
+  to: string
+  distance: number
+  baseSpeedLimit: number
+  /** Shortcut edge that must be unlocked (route unlock) before pathfinding may use it. */
+  locked: boolean
+  unlockRouteId?: string
+  /** Only these vehicle tiers may use this edge (e.g. pedestrian/bike paths). Empty = all. */
+  vehicleOnly: VehicleTierId[]
+  /** >1 while a Traffic Jam / Rush Hour event is active on this edge. */
+  weightMultiplier: number
+  /** True while a Road Closure event has removed this edge from the graph. */
+  closed: boolean
+  /** Connects two different districts; used for barrier placement. */
+  isConnector: boolean
+  connectorRouteId?: string
 }
 
 // ---------------------------------------------------------------------------
-// Rooms / floors / hotspots
+// Vehicles & upgrades
 // ---------------------------------------------------------------------------
 
-export type HotspotKind = 'clue' | 'npc' | 'flavor' | 'exit' | 'note';
-
-export interface Hotspot {
-  id: string;
-  label: string;
-  x: number; // percentage 0-100 within the room scene
-  y: number;
-  w: number;
-  h: number;
-  kind: HotspotKind;
-  clueId?: ClueId; // kind: 'clue'
-  npcId?: SuspectId; // kind: 'npc'
-  flavorText?: string; // kind: 'flavor' | 'note'
-  requiresFlags?: FlagId[]; // hotspot hidden until satisfied
-  hideAfterFlags?: FlagId[]; // hotspot hidden once satisfied (e.g. clue already taken)
-  setsFlags?: FlagId[]; // granted on interaction (in addition to clue pickup)
+export interface VehicleDef {
+  id: VehicleTierId
+  name: string
+  cost: number
+  topSpeed: number
+  acceleration: number
+  handling: number
+  cargoCapacity: number
+  color: number
+  accentColor: number
+  unlockLabel?: string
+  weatherResistant?: boolean
+  bodyStyle: 'bike' | 'ebike' | 'scooter' | 'motorbike' | 'car' | 'van'
 }
 
-export type RoomKind = 'scene' | 'flavor' | 'locked';
-export type RoomArtKey =
-  | 'lobby-desk'
-  | 'lobby-lounge'
-  | 'lobby-entrance'
-  | 'security-office'
-  | 'bar'
-  | 'restaurant'
-  | 'function-room'
-  | 'guestroom-crime'
-  | 'guestroom-neighbor'
-  | 'guestroom-plain'
-  | 'guestroom-hidden'
-  | 'vending-nook'
-  | 'laundry'
-  | 'housekeeping'
-  | 'stairwell'
-  | 'maintenance'
-  | 'rooftop';
+export type UpgradeSlotType = 'engine' | 'tires' | 'cargo' | 'utility'
 
-export interface Room {
-  id: RoomId;
-  floorId: FloorId;
-  doorNumber: string; // "412" or "Front Desk"
-  name: string;
-  kind: RoomKind;
-  unlockFlag?: FlagId; // when kind === 'locked', becomes `unlockedKind` once set
-  unlockedKind?: RoomKind;
-  lockedReason?: string;
-  flavorText?: string; // kind: 'flavor'
-  description?: string; // kind: 'scene', shown on entry
-  art?: RoomArtKey;
-  hotspots?: Hotspot[];
+export interface UpgradeLevelDef {
+  level: number
+  cost: number
+  description: string
+  effect: {
+    topSpeed?: number
+    acceleration?: number
+    handling?: number
+    cargoCapacity?: number
+    fragileRetention?: number
+    boostCapacity?: number
+    pickupSpeedMultiplier?: number
+  }
 }
 
-export interface Floor {
-  id: FloorId;
-  displayNumber: string; // 'Lobby' | 'M' | '2' ... '5' | 'Roof'
-  name: string;
-  subtitle?: string;
-  rooms: Room[];
-  locked?: { reasonText: string; unlockFlag: FlagId };
-  ambientChats?: string[]; // elevator small-talk lines usable en route to this floor
+export interface UpgradeSlotDef {
+  slot: UpgradeSlotType
+  name: string
+  levels: UpgradeLevelDef[]
 }
 
 // ---------------------------------------------------------------------------
-// Timeline
+// Districts
 // ---------------------------------------------------------------------------
 
-export interface TimelineEntry {
-  id: string;
-  time: string; // "7:00 PM"
-  sortKey: number; // minutes since midnight, for ordering
-  title: string;
-  description: string;
-  requiresFlags?: FlagId[]; // empty/undefined = known from the start
+export type TrafficDensity = 'low' | 'medium' | 'medium-high' | 'high' | 'variable'
+
+export interface DistrictConnectorDef {
+  id: string
+  toDistrictId: string
+  fromNodeGrid: [number, number]
+  toNodeGrid: [number, number]
+  label: string
+  savingsLabel: string
+  vehicleOnly?: VehicleTierId[]
+}
+
+export interface DistrictDef {
+  id: string
+  name: string
+  unlockRep: number
+  gridCols: number
+  gridRows: number
+  blockSize: number
+  origin: Vec2
+  trafficDensity: TrafficDensity
+  groundColor: number
+  roadColor: number
+  buildingPalette: number[]
+  minBuildingHeight: number
+  maxBuildingHeight: number
+  sparse?: boolean
+  description: string
 }
 
 // ---------------------------------------------------------------------------
-// Chapters
+// Orders
 // ---------------------------------------------------------------------------
 
-export interface Chapter {
-  number: number;
-  title: string;
-  goalText: string;
-  advanceWhenFlags?: FlagId[]; // all required to advance INTO this chapter; chapter 1 has none
+export type ItemType = 'Food' | 'Package' | 'Fragile' | 'Cold' | 'Documents' | 'Hazmat'
+export type SpecialFlag = 'Fragile' | 'RushHour' | 'VIP' | 'MysteryBox'
+export type OrderState = 'board' | 'toPickup' | 'toDropoff' | 'completed' | 'failed'
+
+export interface Order {
+  id: string
+  pickupNodeId: string
+  dropoffNodeId: string
+  pickupLabel: string
+  dropoffLabel: string
+  itemType: ItemType
+  distance: number
+  basePayout: number
+  timeLimit: number
+  tipPotential: number
+  difficultyTier: number
+  isMultiStop: boolean
+  specialFlags: SpecialFlag[]
+  state: OrderState
+  createdAt: number
+  boardExpiresAt: number
+  acceptedAt: number | null
+  pickedUpAt: number | null
+  /** 0-100, only meaningful for Fragile/Cold cargo. */
+  condition: number
+  mysteryRevealed: boolean
+}
+
+export interface DeliveryResult {
+  order: Order
+  payout: number
+  tip: number
+  late: boolean
+  conditionAtDropoff: number
+  vip: boolean
+  mystery: boolean
 }
 
 // ---------------------------------------------------------------------------
-// Case solution & accusation
+// Random events
 // ---------------------------------------------------------------------------
 
-export interface AccusationOption {
-  id: string;
-  label: string;
+export type GameEventTypeId =
+  | 'rainstorm'
+  | 'trafficJam'
+  | 'roadClosure'
+  | 'rushHour'
+  | 'vipFlashOrder'
+  | 'mysteryBoxWave'
+
+export interface GameEventDef {
+  id: GameEventTypeId
+  name: string
+  description: string
+  icon: string
+  minDuration: number
+  maxDuration: number
+  weight: number
+  scheduled: boolean
+  intervalSeconds?: number
+  oneShot: boolean
 }
 
-export interface CaseSolution {
-  killerId: SuspectId;
-  weaponId: string;
-  motiveId: string;
+export interface GlobalModifiers {
+  payoutMultiplier: number
+  visibility: number
+  handling: number
 }
 
-export interface AccusationChoice {
-  suspectId: SuspectId;
-  weaponId: string;
-  motiveId: string;
+// ---------------------------------------------------------------------------
+// Save data
+// ---------------------------------------------------------------------------
+
+export interface SaveData {
+  version: number
+  cash: number
+  rep: number
+  xp: number
+  level: number
+  ownedVehicles: VehicleTierId[]
+  equippedVehicle: VehicleTierId
+  upgrades: Partial<Record<VehicleTierId, Partial<Record<UpgradeSlotType, number>>>>
+  unlockedDistricts: string[]
+  unlockedRoutes: string[]
+  cargoBonusSlots: number
 }
 
-export interface Rebuttal {
-  id: string;
-  condition: (accused: AccusationChoice, solution: CaseSolution) => boolean;
-  priority: number; // higher checked first
-  lines: string[];
+export interface RunStats {
+  deliveriesCompleted: number
+  deliveriesFailed: number
+  totalEarned: number
+}
+
+// ---------------------------------------------------------------------------
+// World / physics
+// ---------------------------------------------------------------------------
+
+export interface Collider {
+  x: number
+  z: number
+  radius: number
+  kind: 'building' | 'barrier' | 'prop'
+  routeId?: string
 }
