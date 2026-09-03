@@ -334,7 +334,7 @@ export class GameEngine {
 
     this.routeLineTimer -= dt
     if (this.routeLineTimer <= 0) {
-      this.routeLineTimer = 1.5
+      this.routeLineTimer = 0.75
       this.updateRouteLine()
     } else {
       // The path itself only needs recomputing on the timer above (A* isn't cheap), but the
@@ -671,6 +671,16 @@ export class GameEngine {
       return
     }
     const { nodes, turnIndex, maneuver, targetLabel } = this.navRoute
+    const turnNode = nodes[turnIndex]
+    // Once the player is basically at the reported turn/arrival point, the cached path is either
+    // about to be wrong (a new turn is coming right up) or already is — force an immediate
+    // recompute instead of coasting on stale nodes until the periodic timer happens to fire.
+    // (Confirmed with a direct test: a stale cache can report a distance wildly larger than
+    // reality until the scheduled recompute corrects it in one big jump.)
+    if (Math.hypot(turnNode.x - this.vehicle.x, turnNode.z - this.vehicle.z) < 8) {
+      this.routeLineTimer = 0
+      return
+    }
     let distance = Math.hypot(nodes[0].x - this.vehicle.x, nodes[0].z - this.vehicle.z)
     for (let i = 0; i < turnIndex; i++) {
       distance += Math.hypot(nodes[i + 1].x - nodes[i].x, nodes[i + 1].z - nodes[i].z)
