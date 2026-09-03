@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { RoadGraph } from './RoadGraph'
+import { LANE_OFFSET, RoadGraph } from './RoadGraph'
 import { buildCity, districtAt } from '../world/CityBuilder'
 import type { CityBuildResult } from '../world/CityBuilder'
 import { PlayerVehicle } from '../entities/PlayerVehicle'
@@ -21,11 +21,17 @@ import { DISTRICTS } from '../data/districts'
 import { loadSave, writeSave, SAVE_VERSION } from './SaveSystem'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from './time'
-import type { PathResult } from './RoadGraph'
-import type { NavInfo, Order, SaveData, UpgradeSlotType, VehicleTierId } from '../types'
+import type { NavInfo, Order, RoadNode, SaveData, UpgradeSlotType, VehicleTierId } from '../types'
 
 const DEPOT_RADIUS = 10
 const AUTOSAVE_INTERVAL = 12
+
+interface NavRoute {
+  nodes: RoadNode[]
+  turnIndex: number
+  maneuver: NavInfo['maneuver']
+  targetLabel: string
+}
 
 export class GameEngine {
   private readonly scene = new THREE.Scene()
@@ -58,6 +64,7 @@ export class GameEngine {
   private readonly markers = new Map<string, THREE.Group>()
   private routeLine: THREE.Mesh | null = null
   private routeLineTimer = 0
+  private navRoute: NavRoute | null = null
   private lastCountdownSecond = -1
   private lastIsNight = false
   private currentNow = 0
@@ -329,6 +336,11 @@ export class GameEngine {
     if (this.routeLineTimer <= 0) {
       this.routeLineTimer = 1.5
       this.updateRouteLine()
+    } else {
+      // The path itself only needs recomputing on the timer above (A* isn't cheap), but the
+      // distance readout is just arithmetic over the cached path — update it every frame so it
+      // counts down smoothly instead of freezing for up to 1.5s and then jumping.
+      this.updateNavDistance()
     }
 
     this.vehicle.setCarrying(this.orders.activeOrders().length)
@@ -573,66 +585,97 @@ export class GameEngine {
   }
 
   private updateRouteLine(): void {
+    this.clearRouteVisual()
     const order = this.orders.getFocused()
     if (!order) {
-      if (this.routeLine) {
-        this.scene.remove(this.routeLine)
-        this.routeLine.geometry.dispose()
-        this.routeLine = null
-      }
-      useGameStore.setState({ navInfo: null })
+      this.navRoute = null
+      this.updateNavDistance()
       return
     }
     const targetNodeId = order.state === 'toPickup' ? order.pickupNodeId : order.dropoffNodeId
     const targetLabel = order.state === 'toPickup' ? order.pickupLabel : order.dropoffLabel
     const startNode = this.graph.nearestNode(this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts)
-    if (this.routeLine) {
-      this.scene.remove(this.routeLine)
-      this.routeLine.geometry.dispose()
-      this.routeLine = null
-    }
     if (!startNode) {
-      useGameStore.setState({ navInfo: null })
+      this.navRoute = null
+      this.updateNavDistance()
       return
     }
     const path = this.graph.findPath(startNode.id, targetNodeId, { vehicleTier: this.equippedVehicle, unlockedRoutes: this.reputation.unlockedRoutes })
     if (!path || path.nodeIds.length < 2) {
       const targetNode = this.graph.getNode(targetNodeId)
-      const distance = targetNode ? Math.hypot(targetNode.x - this.vehicle.x, targetNode.z - this.vehicle.z) : 0
-      useGameStore.setState({ navInfo: { maneuver: 'arrive', distance, targetLabel } })
+      this.navRoute = targetNode ? { nodes: [targetNode], turnIndex: 0, maneuver: 'arrive', targetLabel } : null
+      this.updateNavDistance()
       return
     }
-    const points = path.nodeIds.map((id) => {
-      const n = this.graph.getNode(id)!
-      return new THREE.Vector3(n.x, 0.55, n.z)
-    })
+
+    const nodes = path.nodeIds.map((id) => this.graph.getNode(id)!)
+    const turn = this.findTurn(nodes)
+    this.navRoute = { nodes, turnIndex: turn ? turn.index : nodes.length - 1, maneuver: turn ? turn.maneuver : 'arrive', targetLabel }
+    this.updateNavDistance()
+
     const color = order.state === 'toPickup' ? 0xffcc33 : 0x33cc66
-    const curve = new THREE.CatmullRomCurve3(points)
-    const tubeGeo = new THREE.TubeGeometry(curve, Math.max(8, points.length * 6), 0.32, 6, false)
+    const offsetPoints = this.laneOffsetPoints(nodes)
+    const curve = new THREE.CatmullRomCurve3(offsetPoints)
+    const tubeGeo = new THREE.TubeGeometry(curve, Math.max(8, offsetPoints.length * 6), 0.32, 6, false)
     const tubeMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.35 })
     this.routeLine = new THREE.Mesh(tubeGeo, tubeMat)
     this.scene.add(this.routeLine)
-
-    useGameStore.setState({ navInfo: this.computeNavInfo(path, targetLabel) })
   }
 
-  /** Walks the path from the player's position to the first real turn (or straight to arrival) for the nav panel. */
-  private computeNavInfo(path: PathResult, targetLabel: string): NavInfo {
-    const nodes = path.nodeIds.map((id) => this.graph.getNode(id)!)
-    let distance = Math.hypot(nodes[0].x - this.vehicle.x, nodes[0].z - this.vehicle.z)
+  private clearRouteVisual(): void {
+    if (!this.routeLine) return
+    this.scene.remove(this.routeLine)
+    this.routeLine.geometry.dispose()
+    this.routeLine = null
+  }
+
+  /**
+   * Offsets each path node into the same lane traffic actually drives in (left of travel
+   * direction, matching TrafficAgent), so the glowing route sits visibly in a lane instead of
+   * floating down the bare centerline the dashed lane markings already occupy.
+   */
+  private laneOffsetPoints(nodes: RoadNode[]): THREE.Vector3[] {
+    return nodes.map((node, i) => {
+      const forward = i < nodes.length - 1
+      const neighbor = forward ? nodes[i + 1] : nodes[i - 1]
+      const dx = forward ? neighbor.x - node.x : node.x - neighbor.x
+      const dz = forward ? neighbor.z - node.z : node.z - neighbor.z
+      const len = Math.max(0.001, Math.hypot(dx, dz))
+      const perpX = dz / len
+      const perpZ = -dx / len
+      return new THREE.Vector3(node.x + perpX * LANE_OFFSET, 0.55, node.z + perpZ * LANE_OFFSET)
+    })
+  }
+
+  /** Finds the first turn sharper than 45° walking the path; null means it runs straight to the destination. */
+  private findTurn(nodes: RoadNode[]): { index: number; maneuver: 'left' | 'right' } | null {
     for (let i = 1; i < nodes.length - 1; i++) {
       const inHeading = Math.atan2(nodes[i].x - nodes[i - 1].x, nodes[i].z - nodes[i - 1].z)
       const outHeading = Math.atan2(nodes[i + 1].x - nodes[i].x, nodes[i + 1].z - nodes[i].z)
       let delta = outHeading - inHeading
       while (delta > Math.PI) delta -= Math.PI * 2
       while (delta < -Math.PI) delta += Math.PI * 2
-      if (Math.abs(delta) > Math.PI / 4) {
-        return { maneuver: delta > 0 ? 'left' : 'right', distance, targetLabel }
-      }
+      if (Math.abs(delta) > Math.PI / 4) return { index: i, maneuver: delta > 0 ? 'left' : 'right' }
+    }
+    return null
+  }
+
+  /**
+   * Recomputes just the live distance-to-next-turn from the player's current position over the
+   * cached path — cheap (a handful of Math.hypot calls), so it can run every frame and the counter
+   * counts down smoothly instead of only updating (and jumping) once per 1.5s path recompute.
+   */
+  private updateNavDistance(): void {
+    if (!this.navRoute) {
+      useGameStore.setState({ navInfo: null })
+      return
+    }
+    const { nodes, turnIndex, maneuver, targetLabel } = this.navRoute
+    let distance = Math.hypot(nodes[0].x - this.vehicle.x, nodes[0].z - this.vehicle.z)
+    for (let i = 0; i < turnIndex; i++) {
       distance += Math.hypot(nodes[i + 1].x - nodes[i].x, nodes[i + 1].z - nodes[i].z)
     }
-    distance += Math.hypot(nodes[nodes.length - 1].x - nodes[nodes.length - 2].x, nodes[nodes.length - 1].z - nodes[nodes.length - 2].z)
-    return { maneuver: 'arrive', distance, targetLabel }
+    useGameStore.setState({ navInfo: { maneuver, distance, targetLabel } })
   }
 
   private computeInteractPrompt(driving: boolean): string | null {
@@ -704,8 +747,7 @@ export class GameEngine {
     }
 
     if (maxDist < dist) {
-      camPos.x = targetX + dirX * maxDist
-      camPos.z = targetZ + dirZ * maxDist
+      this.camera.correctPosition(new THREE.Vector3(targetX + dirX * maxDist, camPos.y, targetZ + dirZ * maxDist))
     }
   }
 

@@ -1,6 +1,9 @@
 import type { RoadEdge, RoadNode, VehicleTierId } from '../types'
 import { CONNECTORS, DISTRICTS, SHORTCUT_ROUTE_ID } from '../data/districts'
 
+/** How far traffic (and the route line) sits to the left of a road's centerline, in world units. */
+export const LANE_OFFSET = 2.1
+
 export interface PathfindContext {
   vehicleTier: VehicleTierId
   unlockedRoutes: Set<string>

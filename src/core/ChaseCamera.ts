@@ -27,6 +27,12 @@ export class ChaseCamera {
     this.focusMode = on
   }
 
+  /** Pushes an externally-clamped position (e.g. pulled out of a building) back into the spring-arm state, so next frame's lerp resumes from the corrected spot instead of fighting its way back toward the wall it was just pulled out of. */
+  correctPosition(pos: THREE.Vector3): void {
+    this.currentPos.copy(pos)
+    this.camera.position.copy(pos)
+  }
+
   snapTo(target: ChaseTarget): void {
     const back = 11
     const height = 6.2

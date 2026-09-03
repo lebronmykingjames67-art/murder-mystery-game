@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { RoadGraph } from '../core/RoadGraph'
+import { LANE_OFFSET, type RoadGraph } from '../core/RoadGraph'
 import type { RoadEdge } from '../types'
 import type { TrafficLightSystem } from '../systems/TrafficLightSystem'
 
@@ -7,7 +7,6 @@ const TRAFFIC_COLORS = [0xcc3f3f, 0x3f7fcc, 0xd9c93f, 0x7a7a7a, 0x3fa85a, 0xd98a
 const RECYCLE_RADIUS = 260
 const AGENT_COUNT = 22
 const STOP_LINE = 0.86
-const LANE_OFFSET = 2.1
 
 const brakeOffMat = new THREE.MeshStandardMaterial({ color: 0x330000, roughness: 0.8 })
 const brakeOnMat = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 1.5 })
