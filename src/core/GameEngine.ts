@@ -113,6 +113,7 @@ export class GameEngine {
     this.pedestrians = new PedestrianManager(this.scene, this.graph, this.reputation.unlockedDistricts)
     this.fleet = new FleetManager(this.scene, this.graph)
     this.fleet.syncRoster(this.business.staff, this.reputation.unlockedDistricts)
+    this.refreshPropertySigns()
 
     const worldState: EventWorldState = {
       graph: this.graph,
@@ -290,11 +291,21 @@ export class GameEngine {
     if (this.cash < def.cost) return { ok: false, reason: 'Not enough cash.' }
     this.cash -= def.cost
     this.business.buyProperty(id)
+    this.refreshPropertySigns()
     this.audio.unlock()
     useGameStore.getState().pushToast({ kind: 'unlock', title: `Property acquired: ${def.name}`, detail: `+${def.capacity} hire slots.` })
     this.syncMeta()
     this.persist()
     return { ok: true }
+  }
+
+  /** Flips each property's in-world sign between FOR SALE and OWNED to match the current roster. */
+  private refreshPropertySigns(): void {
+    for (const marker of this.city.propertyMarkers) {
+      const owned = this.business.ownedProperties.has(marker.id)
+      marker.forSaleSign.visible = !owned
+      marker.ownedSign.visible = owned
+    }
   }
 
   teleportToDepot(): void {

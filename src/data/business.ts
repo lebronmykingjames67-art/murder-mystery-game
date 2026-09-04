@@ -8,6 +8,8 @@ export const PROPERTIES: PropertyDef[] = [
     capacity: 2,
     unlockRep: 0,
     description: 'A small rented garage a few blocks from the depot. Room for 2 hires.',
+    districtId: 'downtown',
+    grid: [1, 1],
   },
   {
     id: 'warehouse',
@@ -16,6 +18,8 @@ export const PROPERTIES: PropertyDef[] = [
     capacity: 4,
     unlockRep: 2,
     description: 'Converted storage space with its own loading dock. Room for 4 hires.',
+    districtId: 'oldtown',
+    grid: [6, 6],
   },
   {
     id: 'distcenter',
@@ -24,6 +28,8 @@ export const PROPERTIES: PropertyDef[] = [
     capacity: 6,
     unlockRep: 4,
     description: 'A proper second depot with parking for a real fleet. Room for 6 hires.',
+    districtId: 'suburbs',
+    grid: [4, 4],
   },
   {
     id: 'hq',
@@ -32,6 +38,8 @@ export const PROPERTIES: PropertyDef[] = [
     capacity: 10,
     unlockRep: 8,
     description: 'A full logistics headquarters. Room for 10 hires.',
+    districtId: 'uptown',
+    grid: [1, 1],
   },
 ]
 

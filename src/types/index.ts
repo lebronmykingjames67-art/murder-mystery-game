@@ -231,6 +231,9 @@ export interface PropertyDef {
   capacity: number
   unlockRep: number
   description: string
+  /** Where this property physically sits in the world, so it's a place you can actually drive to. */
+  districtId: string
+  grid: [number, number]
 }
 
 export interface RunStats {

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useGameStore } from '../state/gameStore'
 import { CONNECTORS, DISTRICTS } from '../data/districts'
+import { PROPERTIES } from '../data/business'
 
 const W = 640
 const H = 460
@@ -98,6 +99,23 @@ export function MapScreen() {
         ctx.fill()
       }
 
+      for (const prop of PROPERTIES) {
+        const district = DISTRICTS.find((d) => d.id === prop.districtId)
+        if (!district || !s.unlockedDistricts.includes(district.id)) continue
+        const owned = s.ownedProperties.includes(prop.id)
+        const propScreen = toScreen(district.origin.x + prop.grid[0] * district.blockSize, district.origin.z + prop.grid[1] * district.blockSize)
+        ctx.fillStyle = owned ? '#33cc66' : 'rgba(255,255,255,0.35)'
+        ctx.beginPath()
+        ctx.rect(propScreen.x - 4, propScreen.y - 4, 8, 8)
+        ctx.fill()
+        if (owned) {
+          ctx.fillStyle = '#9be6b0'
+          ctx.font = '10px system-ui'
+          ctx.textAlign = 'center'
+          ctx.fillText(prop.name, propScreen.x, propScreen.y - 8)
+        }
+      }
+
       const p = toScreen(s.playerX, s.playerZ)
       ctx.save()
       ctx.translate(p.x, p.y)
@@ -128,7 +146,7 @@ export function MapScreen() {
           </button>
         </div>
         <canvas ref={canvasRef} width={W} height={H} className="map-canvas" />
-        <p className="modal-hint">M to close · Locked districts show the Rep needed to unlock.</p>
+        <p className="modal-hint">M to close · Locked districts show the Rep needed to unlock · green squares are your owned property.</p>
       </div>
     </div>
   )

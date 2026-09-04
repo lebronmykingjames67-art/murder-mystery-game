@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { RoadGraph } from '../core/RoadGraph'
 import { seededRandom } from '../core/RoadGraph'
 import { CONNECTORS, DISTRICTS } from '../data/districts'
+import { PROPERTIES } from '../data/business'
 import type { Collider, DistrictDef, RoadNode } from '../types'
 import { makeLabelSprite } from './labels'
 import { buildTrafficLightRig, type TrafficLightRig } from '../systems/TrafficLightSystem'
@@ -16,6 +17,14 @@ export interface DistrictBounds {
   centerZ: number
 }
 
+export interface PropertyMarker {
+  id: string
+  x: number
+  z: number
+  forSaleSign: THREE.Sprite
+  ownedSign: THREE.Sprite
+}
+
 export interface CityBuildResult {
   colliders: Collider[]
   barriersByRoute: Map<string, THREE.Object3D[]>
@@ -23,6 +32,7 @@ export interface CityBuildResult {
   depotPosition: { x: number; z: number }
   markerGroup: THREE.Group
   trafficLights: TrafficLightRig[]
+  propertyMarkers: PropertyMarker[]
 }
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1)
@@ -104,11 +114,38 @@ function districtBoundsOf(district: DistrictDef): DistrictBounds {
   return { id: district.id, minX, maxX, minZ, maxZ, centerX: (minX + maxX) / 2, centerZ: (minZ + maxZ) / 2 }
 }
 
+/** A distinct landmark building for a purchasable property, with a FOR SALE sign that swaps to an OWNED sign once bought. */
+function buildPropertyLandmark(scene: THREE.Scene, x: number, z: number, prop: (typeof PROPERTIES)[number]): PropertyMarker {
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5c, roughness: 0.8, metalness: 0.1 })
+  const body = new THREE.Mesh(UNIT_BOX, bodyMat)
+  body.scale.set(20, 10, 16)
+  body.position.set(x, 5, z)
+  scene.add(body)
+
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffb200, emissive: 0xffb200, emissiveIntensity: 0.4 })
+  const stripe = new THREE.Mesh(UNIT_BOX, stripeMat)
+  stripe.scale.set(20.2, 1, 2)
+  stripe.position.set(x, 10.5, z - 7)
+  scene.add(stripe)
+
+  const forSaleSign = makeLabelSprite(`FOR SALE — ${prop.name} ($${prop.cost})`, { color: '#fff', bg: 'rgba(120,20,10,0.9)' })
+  forSaleSign.position.set(x, 13, z)
+  scene.add(forSaleSign)
+
+  const ownedSign = makeLabelSprite(`${prop.name.toUpperCase()} — YOUR PROPERTY`, { color: '#0b1a0f', bg: 'rgba(120,255,170,0.92)' })
+  ownedSign.position.set(x, 13, z)
+  ownedSign.visible = false
+  scene.add(ownedSign)
+
+  return { id: prop.id, x, z, forSaleSign, ownedSign }
+}
+
 export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult {
   const colliders: Collider[] = []
   const barriersByRoute = new Map<string, THREE.Object3D[]>()
   const districtBounds: DistrictBounds[] = []
   const trafficLights: TrafficLightRig[] = []
+  const propertyMarkers: PropertyMarker[] = []
   const markerGroup = new THREE.Group()
   markerGroup.name = 'order-markers'
   scene.add(markerGroup)
@@ -136,6 +173,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
     const skipDensity = district.sparse ? 0.45 : 0.12
     const isResidential = district.id === 'suburbs'
     const entryPoints = connectorEntryPoints(district)
+    const districtProperties = PROPERTIES.filter((p) => p.districtId === district.id)
 
     const avgHeight = (district.minBuildingHeight + district.maxBuildingHeight) / 2
     const windowTex = baseWindowTexture.clone()
@@ -148,6 +186,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
         const cz = district.origin.z + (row + 0.5) * district.blockSize
         if (Math.hypot(cx - depot.x, cz - depot.z) < district.blockSize * 1.05) continue
         if (entryPoints.some((p) => Math.hypot(cx - p.x, cz - p.z) < district.blockSize * 1.3)) continue
+        if (districtProperties.some((p) => p.grid[0] === col && p.grid[1] === row)) continue
         if (rand() < skipDensity) continue
 
         const footprint = district.blockSize * (0.45 + rand() * 0.28)
@@ -174,6 +213,13 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
 
         colliders.push({ x: cx, z: cz, radius: (footprint / 2) * 1.08, kind: 'building' })
       }
+    }
+
+    for (const prop of districtProperties) {
+      const px = district.origin.x + prop.grid[0] * district.blockSize
+      const pz = district.origin.z + prop.grid[1] * district.blockSize
+      propertyMarkers.push(buildPropertyLandmark(scene, px, pz, prop))
+      colliders.push({ x: px, z: pz, radius: 11, kind: 'building' })
     }
 
     // Sparse streetlights at a subset of intersections.
@@ -365,7 +411,7 @@ export function buildCity(scene: THREE.Scene, graph: RoadGraph): CityBuildResult
     colliders.push({ x: mx, z: mz, radius: 3, kind: 'barrier', routeId: edge.unlockRouteId })
   }
 
-  return { colliders, barriersByRoute, districtBounds, depotPosition: { x: depot.x, z: depot.z }, markerGroup, trafficLights }
+  return { colliders, barriersByRoute, districtBounds, depotPosition: { x: depot.x, z: depot.z }, markerGroup, trafficLights, propertyMarkers }
 }
 
 export function districtAt(bounds: DistrictBounds[], x: number, z: number): string | null {
