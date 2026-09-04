@@ -6,7 +6,7 @@ export type ScreenId = 'none' | 'orderBoard' | 'shop' | 'map' | 'pause'
 
 export interface Toast {
   id: string
-  kind: 'delivery' | 'event' | 'unlock' | 'fail' | 'info' | 'levelUp'
+  kind: 'delivery' | 'event' | 'unlock' | 'fail' | 'info' | 'levelUp' | 'milestone'
   title: string
   detail?: string
   createdAt: number
@@ -28,6 +28,9 @@ export interface GameStoreState {
   isNight: number
   interactPrompt: string | null
   navInfo: NavInfo | null
+  vehicleHealth: number
+  vehicleBrokenDown: boolean
+  isRaining: boolean
 
   // Occasional, updated at mutation points.
   cash: number
@@ -53,6 +56,7 @@ export interface GameStoreState {
   ownedProperties: string[]
   staff: StaffMember[]
   staffCapacity: number
+  completedMilestones: string[]
 
   pushToast: (toast: Omit<Toast, 'id' | 'createdAt'>) => void
   dismissToast: (id: string) => void
@@ -76,6 +80,9 @@ export const useGameStore = create<GameStoreState>((set) => ({
   isNight: 0,
   interactPrompt: null,
   navInfo: null,
+  vehicleHealth: 100,
+  vehicleBrokenDown: false,
+  isRaining: false,
 
   cash: 0,
   rep: 0,
@@ -100,6 +107,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   ownedProperties: [],
   staff: [],
   staffCapacity: 0,
+  completedMilestones: [],
 
   pushToast: (toast) =>
     set((state) => {

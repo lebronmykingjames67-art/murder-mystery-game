@@ -85,6 +85,18 @@ export const VEHICLES: Record<VehicleTierId, VehicleDef> = {
 
 export const VEHICLE_ORDER: VehicleTierId[] = ['bicycle', 'ebike', 'scooter', 'motorbike', 'car', 'van']
 
+export const VEHICLE_MAX_HEALTH = 100
+
+/** Cash to repair a vehicle from 0 to full health — scaled well below the vehicle's own price. */
+export const REPAIR_FULL_COST: Record<VehicleTierId, number> = {
+  bicycle: 40,
+  ebike: 90,
+  scooter: 150,
+  motorbike: 320,
+  car: 600,
+  van: 1100,
+}
+
 const SLOT_NAMES: Record<UpgradeSlotType, string> = {
   engine: 'Engine Tuning',
   tires: 'Tires & Suspension',

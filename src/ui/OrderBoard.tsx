@@ -14,6 +14,7 @@ export function OrderBoard({ engine }: Props) {
   const setScreen = useGameStore((s) => s.setScreen)
 
   const full = activeOrders.length >= capacity
+  const sortedBoard = [...boardOrders].sort((a, b) => (b.milestoneId ? 1 : 0) - (a.milestoneId ? 1 : 0))
 
   return (
     <div className="modal-overlay" onClick={() => setScreen('none')}>
@@ -29,7 +30,7 @@ export function OrderBoard({ engine }: Props) {
         </div>
         <div className="order-board-grid">
           {boardOrders.length === 0 && <p className="empty-note">No jobs posted right now — check back shortly.</p>}
-          {boardOrders.map((o) => (
+          {sortedBoard.map((o) => (
             <OrderCard key={o.id} order={o} simNow={simNow} mode="board" disableAccept={full} onAccept={() => engine.current?.acceptOrder(o.id)} />
           ))}
         </div>

@@ -42,24 +42,29 @@ export function OrderCard({ order, simNow, mode, focused, disableAccept, onAccep
     remaining = order.timeLimit - (simNow - order.acceptedAt)
     fraction = Math.max(0, remaining / order.timeLimit)
     late = remaining <= 0
-  } else if (mode === 'board' && isVip) {
+  } else if (mode === 'board' && isVip && !order.milestoneId) {
     remaining = order.boardExpiresAt - simNow
     fraction = Math.max(0, remaining / 30)
   }
 
+  const isMilestone = !!order.milestoneId
+
   return (
     <div
-      className={`order-card ${isVip ? 'order-vip' : ''} ${focused ? 'order-focused' : ''}`}
+      className={`order-card ${isVip ? 'order-vip' : ''} ${isMilestone ? 'order-milestone' : ''} ${focused ? 'order-focused' : ''}`}
       onClick={mode === 'active' ? onFocus : undefined}
       role={mode === 'active' ? 'button' : undefined}
     >
       <div className="order-card-head">
         <span className="order-icon">{ITEM_ICON[order.itemType] ?? '\u{1F4E6}'}</span>
         <span className="order-item-type">{order.itemType}</span>
+        {isMilestone && <span className="badge badge-milestone">MILESTONE</span>}
         {isVip && <span className="badge badge-vip">VIP</span>}
         {isMystery && <span className="badge badge-mystery">?</span>}
         {order.isMultiStop && <span className="badge badge-multi">MULTI</span>}
       </div>
+      {isMilestone && <div className="order-milestone-title">{order.milestoneTitle}</div>}
+      {isMilestone && order.milestoneFlavor && <div className="order-milestone-flavor">"{order.milestoneFlavor}"</div>}
       <div className="order-route">
         <div className="order-route-leg">{mode === 'board' || order.state === 'toPickup' ? order.pickupLabel : order.dropoffLabel}</div>
         <div className="order-route-arrow">{order.state === 'toDropoff' ? '→ dropoff' : '→ pickup'}</div>

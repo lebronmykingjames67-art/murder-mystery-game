@@ -6,6 +6,7 @@ import { PlayerVehicle } from '../entities/PlayerVehicle'
 import { TrafficManager } from '../entities/TrafficAgent'
 import { PedestrianManager } from '../entities/Pedestrian'
 import { FleetManager } from '../entities/FleetManager'
+import { RainSystem } from '../entities/RainSystem'
 import { ChaseCamera } from './ChaseCamera'
 import { InputManager, KEYS } from './InputManager'
 import { GameLoop } from './GameLoop'
@@ -18,9 +19,10 @@ import { ReputationSystem } from '../systems/ReputationSystem'
 import { TrafficLightSystem } from '../systems/TrafficLightSystem'
 import { BusinessSystem } from '../systems/BusinessSystem'
 import { computeEffectiveStats, nextUpgradeCost, vehicleDef } from '../systems/UpgradeSystem'
-import { VEHICLES } from '../data/vehicles'
+import { VEHICLES, VEHICLE_MAX_HEALTH, REPAIR_FULL_COST } from '../data/vehicles'
 import { DISTRICTS } from '../data/districts'
 import { PROPERTIES, HIRE_COST } from '../data/business'
+import { MILESTONES } from '../data/milestones'
 import { loadSave, writeSave, SAVE_VERSION } from './SaveSystem'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from './time'
@@ -53,6 +55,7 @@ export class GameEngine {
   private readonly pedestrians: PedestrianManager
   private readonly business: BusinessSystem
   private readonly fleet: FleetManager
+  private readonly rain: RainSystem
   private readonly vehicle: PlayerVehicle
   private readonly sun: THREE.DirectionalLight
   private readonly ambient: THREE.AmbientLight
@@ -65,6 +68,9 @@ export class GameEngine {
   private readonly ownedVehicles: Set<VehicleTierId>
   private equippedVehicle: VehicleTierId
   private upgrades: Partial<Record<VehicleTierId, Partial<Record<UpgradeSlotType, number>>>>
+  private vehicleHealth: Partial<Record<VehicleTierId, number>>
+  private readonly completedMilestones: Set<string>
+  private milestoneCheckTimer = 0
 
   private readonly markers = new Map<string, THREE.Group>()
   private routeLine: THREE.Mesh | null = null
@@ -83,6 +89,8 @@ export class GameEngine {
     this.ownedVehicles = new Set(save.ownedVehicles)
     this.equippedVehicle = save.equippedVehicle
     this.upgrades = save.upgrades
+    this.vehicleHealth = { ...save.vehicleHealth }
+    this.completedMilestones = new Set(save.completedMilestones)
     this.reputation = new ReputationSystem(save)
     this.business = new BusinessSystem(save)
 
@@ -113,6 +121,7 @@ export class GameEngine {
     this.pedestrians = new PedestrianManager(this.scene, this.graph, this.reputation.unlockedDistricts)
     this.fleet = new FleetManager(this.scene, this.graph)
     this.fleet.syncRoster(this.business.staff, this.reputation.unlockedDistricts)
+    this.rain = new RainSystem(this.scene)
     this.refreshPropertySigns()
 
     const worldState: EventWorldState = {
@@ -164,6 +173,7 @@ export class GameEngine {
     window.removeEventListener('resize', this.resizeHandler)
     this.detachNavCanvas()
     this.fleet.dispose()
+    this.rain.dispose(this.scene)
     this.persist()
     this.renderer.dispose()
   }
@@ -224,6 +234,29 @@ export class GameEngine {
     if (this.cash < def.cost) return { ok: false, reason: 'Not enough cash.' }
     this.cash -= def.cost
     this.ownedVehicles.add(id)
+    this.vehicleHealth[id] = VEHICLE_MAX_HEALTH
+    this.audio.uiClick()
+    this.syncMeta()
+    this.persist()
+    return { ok: true }
+  }
+
+  private healthOf(id: VehicleTierId): number {
+    return this.vehicleHealth[id] ?? VEHICLE_MAX_HEALTH
+  }
+
+  repairCost(id: VehicleTierId): number {
+    const missingFraction = 1 - this.healthOf(id) / VEHICLE_MAX_HEALTH
+    return Math.round(missingFraction * REPAIR_FULL_COST[id])
+  }
+
+  repairVehicle(id: VehicleTierId): { ok: boolean; reason?: string } {
+    if (!this.ownedVehicles.has(id)) return { ok: false, reason: 'Not owned.' }
+    const cost = this.repairCost(id)
+    if (cost <= 0) return { ok: false, reason: 'Already at full health.' }
+    if (this.cash < cost) return { ok: false, reason: 'Not enough cash.' }
+    this.cash -= cost
+    this.vehicleHealth[id] = VEHICLE_MAX_HEALTH
     this.audio.uiClick()
     this.syncMeta()
     this.persist()
@@ -350,7 +383,9 @@ export class GameEngine {
         }
       : { forward: false, backward: false, left: false, right: false, handbrake: false, boost: false }
 
-    const effective = computeEffectiveStats(this.equippedVehicle, this.upgrades[this.equippedVehicle] ?? {})
+    const rawEffective = computeEffectiveStats(this.equippedVehicle, this.upgrades[this.equippedVehicle] ?? {})
+    const brokenDown = this.healthOf(this.equippedVehicle) <= 0
+    const effective = brokenDown ? { ...rawEffective, topSpeed: rawEffective.topSpeed * 0.22, acceleration: rawEffective.acceleration * 0.35 } : rawEffective
     const timeOfDay = this.updateDayNight(elapsed)
     const nightBoost = timeOfDay.isNight ? 1.12 : 1
     const combinedModifiers = {
@@ -365,12 +400,18 @@ export class GameEngine {
     if (result.nearMiss && !result.collided) {
       this.vehicle.boostMeter = Math.min(100 + effective.boostCapacityBonus, this.vehicle.boostMeter + 6 * dt)
     }
-    if (result.hardImpact) this.applyCargoDamage(34, effective.fragileRetention, elapsed, 'drove too rough')
+    if (result.hardImpact) {
+      this.applyCargoDamage(34, effective.fragileRetention, elapsed, 'drove too rough')
+      this.applyVehicleDamage(12, effective.fragileRetention)
+    }
 
     this.trafficLights.update(elapsed)
     this.traffic.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts, this.trafficLights)
     this.pedestrians.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts)
     this.fleet.update(dt, this.reputation.unlockedDistricts, this.trafficLights)
+    const raining = this.events.activeEvents().some((e) => e.defId === 'rainstorm')
+    this.rain.setActive(raining)
+    this.rain.update(dt, this.vehicle.x, this.vehicle.z)
 
     const payCycle = this.business.update(dt)
     if (payCycle) {
@@ -390,7 +431,10 @@ export class GameEngine {
       if (dist < 2.6) {
         const fast = Math.abs(this.vehicle.speed) > 7
         this.vehicle.speed *= 0.5
-        if (fast) this.applyCargoDamage(20, effective.fragileRetention, elapsed, 'collided with traffic')
+        if (fast) {
+          this.applyCargoDamage(20, effective.fragileRetention, elapsed, 'collided with traffic')
+          this.applyVehicleDamage(7, effective.fragileRetention)
+        }
       }
     }
 
@@ -400,6 +444,17 @@ export class GameEngine {
 
     const orderEvents = this.orders.update(dt, elapsed, this.graph, this.reputation.unlockedDistricts, this.reputation.rep, this.reputation.unlockedRoutes)
     if (orderEvents.length > 0) this.handleOrderEvents(orderEvents)
+
+    this.milestoneCheckTimer -= dt
+    if (this.milestoneCheckTimer <= 0) {
+      this.milestoneCheckTimer = 2
+      const milestone = this.orders.checkMilestones(this.reputation.rep, elapsed, this.graph, this.reputation.unlockedDistricts, this.reputation.unlockedRoutes, this.completedMilestones)
+      if (milestone) {
+        this.audio.eventSting('milestone')
+        useGameStore.getState().pushToast({ kind: 'milestone', title: `New milestone: ${milestone.milestoneTitle}`, detail: milestone.milestoneFlavor })
+        this.syncBoard()
+      }
+    }
 
     const { started, ended } = this.events.update(dt, elapsed)
     if (started.length > 0 || ended.length > 0) this.handleEventChanges(started, ended)
@@ -448,6 +503,7 @@ export class GameEngine {
       districtName,
       isNight: timeOfDay.isNight ? 1 : 0,
       interactPrompt: this.computeInteractPrompt(driving),
+      isRaining: raining,
     })
 
     this.renderer.render(this.scene, this.camera.camera)
@@ -481,6 +537,24 @@ export class GameEngine {
     this.vehicle.setCarrying(this.orders.activeOrders().length)
     this.syncActive()
     this.updateMarkers()
+  }
+
+  /** Reuses the tires/cargo "retention" stat as general shock absorption — better suspension protects the frame too. */
+  private applyVehicleDamage(amount: number, retention: number): void {
+    const before = this.healthOf(this.equippedVehicle)
+    if (before <= 0) return
+    const after = Math.max(0, before - amount * (1 - retention))
+    this.vehicleHealth[this.equippedVehicle] = after
+    this.audio.vehicleDamage()
+    if (after <= 0 && before > 0) {
+      this.audio.vehicleBrokeDown()
+      useGameStore.getState().pushToast({
+        kind: 'fail',
+        title: 'Vehicle broke down!',
+        detail: `${vehicleDef(this.equippedVehicle).name} needs a repair at the Depot — crawling until then.`,
+      })
+    }
+    useGameStore.setState({ vehicleHealth: after, vehicleBrokenDown: after <= 0 })
   }
 
   private handleInteract(now: number): void {
@@ -527,7 +601,8 @@ export class GameEngine {
         const result = this.orders.confirmDropoff(order.id, now, this.currentPayoutMultiplier())
         if (!result) return
         this.cash += result.payout
-        const repGain = this.computeRepGain(result.order.difficultyTier, result.late, result.conditionAtDropoff, result.vip)
+        const milestoneDef = result.order.milestoneId ? MILESTONES.find((m) => m.id === result.order.milestoneId) : undefined
+        const repGain = milestoneDef ? milestoneDef.repReward : this.computeRepGain(result.order.difficultyTier, result.late, result.conditionAtDropoff, result.vip)
         const leveled = this.reputation.addXp(Math.round(result.payout * 1.2))
         const unlocks = this.reputation.addRep(repGain)
         this.audio.chaChing(result.payout)
@@ -536,6 +611,15 @@ export class GameEngine {
           title: result.mystery ? `Mystery Box revealed: $${result.payout.toFixed(2)}` : `Delivered! +$${result.payout.toFixed(2)}`,
           detail: result.late ? 'Late — reduced payout' : result.vip ? 'VIP delivery bonus!' : `+$${result.tip.toFixed(2)} tip`,
         })
+        if (milestoneDef) {
+          this.completedMilestones.add(milestoneDef.id)
+          this.audio.milestoneComplete()
+          useGameStore.getState().pushToast({
+            kind: 'milestone',
+            title: `Milestone complete: ${milestoneDef.title}`,
+            detail: `+$${result.payout.toFixed(2)} · +${repGain.toFixed(1)} Rep`,
+          })
+        }
         if (leveled) {
           this.audio.levelUp()
           useGameStore.getState().pushToast({ kind: 'levelUp', title: `Level Up! Level ${this.reputation.level}` })
@@ -888,6 +972,9 @@ export class GameEngine {
       ownedProperties: [...this.business.ownedProperties],
       staff: [...this.business.staff],
       staffCapacity: this.business.capacity(),
+      vehicleHealth: this.healthOf(this.equippedVehicle),
+      vehicleBrokenDown: this.healthOf(this.equippedVehicle) <= 0,
+      completedMilestones: [...this.completedMilestones],
     })
   }
 
@@ -913,6 +1000,8 @@ export class GameEngine {
       cargoBonusSlots: 0,
       ownedProperties: [...this.business.ownedProperties],
       staff: [...this.business.staff],
+      vehicleHealth: { ...this.vehicleHealth },
+      completedMilestones: [...this.completedMilestones],
     }
     writeSave(save)
   }

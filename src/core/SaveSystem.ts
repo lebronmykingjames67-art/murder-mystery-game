@@ -18,6 +18,8 @@ export function defaultSaveData(): SaveData {
     cargoBonusSlots: 0,
     ownedProperties: [],
     staff: [],
+    vehicleHealth: {},
+    completedMilestones: [],
   }
 }
 

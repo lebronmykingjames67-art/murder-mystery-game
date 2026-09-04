@@ -17,6 +17,7 @@ export function ShopScreen({ engine }: Props) {
   const ownedProperties = useGameStore((s) => s.ownedProperties)
   const staff = useGameStore((s) => s.staff)
   const staffCapacity = useGameStore((s) => s.staffCapacity)
+  const vehicleHealth = useGameStore((s) => s.vehicleHealth)
   const setScreen = useGameStore((s) => s.setScreen)
 
   return (
@@ -47,8 +48,23 @@ export function ShopScreen({ engine }: Props) {
                     <span>Cargo {def.cargoCapacity}</span>
                   </div>
                   {def.unlockLabel && <div className="vehicle-unlock-label">{def.unlockLabel}</div>}
+                  {isEquipped && (
+                    <div className={`health-bar-row ${vehicleHealth < 35 ? 'health-bar-critical' : ''}`}>
+                      <div className="health-bar-track">
+                        <div className="health-bar-fill" style={{ width: `${vehicleHealth}%` }} />
+                      </div>
+                      <span>{Math.round(vehicleHealth)}% health</span>
+                    </div>
+                  )}
                   {isEquipped ? (
-                    <div className="vehicle-tag">Equipped</div>
+                    <div className="vehicle-tag-row">
+                      <div className="vehicle-tag">Equipped</div>
+                      {vehicleHealth < 100 && (
+                        <button className="btn-secondary" disabled={cash < (engine.current?.repairCost(id) ?? Infinity)} onClick={() => engine.current?.repairVehicle(id)}>
+                          Repair ${engine.current?.repairCost(id) ?? 0}
+                        </button>
+                      )}
+                    </div>
                   ) : isOwned ? (
                     <button className="btn-secondary" onClick={() => engine.current?.equipVehicle(id)}>
                       Equip

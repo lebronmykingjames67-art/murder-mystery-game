@@ -10,6 +10,7 @@ const ICONS: Record<string, string> = {
   fail: '\u{274C}',
   info: '\u{2139}\u{FE0F}',
   levelUp: '\u{2B50}',
+  milestone: '\u{1F3C6}',
 }
 
 export function Toasts() {

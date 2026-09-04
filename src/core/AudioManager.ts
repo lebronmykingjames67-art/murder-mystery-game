@@ -81,6 +81,23 @@ export class AudioManager {
     this.blip(130, 0.35, 'sawtooth', 0.2, 0.1)
   }
 
+  vehicleDamage(): void {
+    this.blip(90, 0.14, 'square', 0.24)
+  }
+
+  vehicleBrokeDown(): void {
+    this.blip(160, 0.2, 'sawtooth', 0.2)
+    this.blip(100, 0.3, 'sawtooth', 0.22, 0.14)
+    this.blip(60, 0.4, 'sawtooth', 0.22, 0.28)
+  }
+
+  milestoneComplete(): void {
+    this.blip(392, 0.14, 'triangle', 0.22)
+    this.blip(523, 0.16, 'triangle', 0.24, 0.1)
+    this.blip(659, 0.18, 'triangle', 0.24, 0.2)
+    this.blip(784, 0.28, 'triangle', 0.26, 0.32)
+  }
+
   countdownTick(): void {
     this.blip(920, 0.05, 'square', 0.1)
   }
@@ -114,6 +131,10 @@ export class AudioManager {
         this.blip(700, 0.1, 'triangle', 0.22)
         this.blip(900, 0.14, 'triangle', 0.22, 0.08)
         this.blip(1100, 0.18, 'triangle', 0.24, 0.16)
+        break
+      case 'milestone':
+        this.blip(330, 0.14, 'sine', 0.2)
+        this.blip(440, 0.16, 'sine', 0.22, 0.1)
         break
       default:
         this.blip(440, 0.2, 'triangle', 0.18)

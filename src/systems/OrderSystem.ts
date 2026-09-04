@@ -1,5 +1,6 @@
 import type { RoadGraph } from '../core/RoadGraph'
 import { CLIENT_NAMES, RESTAURANT_NAMES, tierConfigForRep } from '../data/orderPools'
+import { MILESTONES } from '../data/milestones'
 import type { DeliveryResult, ItemType, Order, SpecialFlag } from '../types'
 import { computePayout } from './PayoutSystem'
 
@@ -101,6 +102,57 @@ export class OrderSystem {
     }
   }
 
+  /** Injects the next uncompleted, rep-eligible career milestone onto the board, if one isn't already live. */
+  checkMilestones(rep: number, now: number, graph: RoadGraph, unlockedDistricts: Set<string>, unlockedRoutes: Set<string>, completed: Set<string>): Order | null {
+    if (this.board.some((o) => o.milestoneId) || this.active.some((o) => o.milestoneId)) return null
+    const def = MILESTONES.find((m) => rep >= m.repRequired && !completed.has(m.id))
+    if (!def) return null
+    if (!unlockedDistricts.has(def.pickupDistrictId) || !unlockedDistricts.has(def.dropoffDistrictId)) return null
+
+    const pickupPois = graph.poisInDistricts(new Set([def.pickupDistrictId]))
+    const dropoffPois = graph.poisInDistricts(new Set([def.dropoffDistrictId]))
+    if (pickupPois.length === 0 || dropoffPois.length === 0) return null
+    const pickup = pick(pickupPois)
+    let dropoff = pick(dropoffPois)
+    let guard = 0
+    while (dropoff.id === pickup.id && guard < 8) {
+      dropoff = pick(dropoffPois)
+      guard += 1
+    }
+    if (dropoff.id === pickup.id) return null
+
+    const path = graph.findPath(pickup.id, dropoff.id, { vehicleTier: 'van', unlockedRoutes })
+    if (!path) return null
+
+    const order: Order = {
+      id: nextOrderId(),
+      pickupNodeId: pickup.id,
+      dropoffNodeId: dropoff.id,
+      pickupLabel: def.pickupLabel,
+      dropoffLabel: def.dropoffLabel,
+      itemType: def.itemType,
+      distance: Math.round(Math.max(20, path.totalDistance)),
+      basePayout: def.payout,
+      timeLimit: def.timeLimit,
+      tipPotential: Math.round(def.payout * 0.15 * 100) / 100,
+      difficultyTier: 5,
+      isMultiStop: false,
+      specialFlags: def.vip ? ['VIP'] : [],
+      state: 'board',
+      createdAt: now,
+      boardExpiresAt: Infinity,
+      acceptedAt: null,
+      pickedUpAt: null,
+      condition: 100,
+      mysteryRevealed: false,
+      milestoneId: def.id,
+      milestoneTitle: def.title,
+      milestoneFlavor: def.flavor,
+    }
+    this.board.push(order)
+    return order
+  }
+
   spawnVipFlashOrder(now: number, graph: RoadGraph, unlockedDistricts: Set<string>, rep: number, unlockedRoutes: Set<string>): Order | null {
     const order = this.generateOrder(now, graph, unlockedDistricts, Math.max(rep, 6), unlockedRoutes)
     if (!order) return null
@@ -123,7 +175,8 @@ export class OrderSystem {
 
     const stillValid: Order[] = []
     for (const o of this.board) {
-      if (o.specialFlags.includes('VIP') && now > o.boardExpiresAt) {
+      // Milestone orders never expire off the board on their own — only being accepted removes them.
+      if (o.specialFlags.includes('VIP') && !o.milestoneId && now > o.boardExpiresAt) {
         events.push({ type: 'vipExpired', order: o })
       } else {
         stillValid.push(o)
@@ -131,15 +184,21 @@ export class OrderSystem {
     }
     this.board = stillValid
 
+    // Milestones sit alongside the regular rotation without displacing it — only non-milestone
+    // orders count against MAX_BOARD_ORDERS for refresh/eviction purposes.
+    const nonMilestoneCount = this.board.filter((o) => !o.milestoneId).length
     this.refreshTimer -= dt
-    if (this.refreshTimer <= 0 && this.board.length < MAX_BOARD_ORDERS + 1) {
+    if (this.refreshTimer <= 0 && nonMilestoneCount < MAX_BOARD_ORDERS + 1) {
       this.refreshTimer = randRange(REFRESH_MIN, REFRESH_MAX)
       const order = this.generateOrder(now, graph, unlockedDistricts, rep, unlockedRoutes)
       if (order) {
-        if (this.board.length >= MAX_BOARD_ORDERS) {
-          let oldestIdx = 0
-          for (let i = 1; i < this.board.length; i++) if (this.board[i].createdAt < this.board[oldestIdx].createdAt) oldestIdx = i
-          this.board[oldestIdx] = order
+        if (nonMilestoneCount >= MAX_BOARD_ORDERS) {
+          let oldestIdx = -1
+          for (let i = 0; i < this.board.length; i++) {
+            if (this.board[i].milestoneId) continue
+            if (oldestIdx === -1 || this.board[i].createdAt < this.board[oldestIdx].createdAt) oldestIdx = i
+          }
+          if (oldestIdx !== -1) this.board[oldestIdx] = order
         } else {
           this.board.push(order)
         }

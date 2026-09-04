@@ -1,5 +1,6 @@
 import type { EngineRef } from '../App'
 import { useGameStore } from '../state/gameStore'
+import { MILESTONES } from '../data/milestones'
 
 interface Props {
   engine: EngineRef
@@ -20,6 +21,7 @@ export function PauseMenu({ engine }: Props) {
   const level = useGameStore((s) => s.level)
   const rep = useGameStore((s) => s.rep)
   const cash = useGameStore((s) => s.cash)
+  const completedMilestones = useGameStore((s) => s.completedMilestones)
 
   return (
     <div className="modal-overlay" onClick={() => setScreen('none')}>
@@ -29,6 +31,9 @@ export function PauseMenu({ engine }: Props) {
           <div>Level {level}</div>
           <div>Rep {rep.toFixed(1)}</div>
           <div>${cash.toFixed(2)}</div>
+        </div>
+        <div className="pause-milestones">
+          Career Milestones: {completedMilestones.length}/{MILESTONES.length}
         </div>
         <button className="btn-primary" onClick={() => setScreen('none')}>
           Resume

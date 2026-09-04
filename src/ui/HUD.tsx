@@ -35,6 +35,8 @@ export function HUD({ engine }: Props) {
   const speed = useGameStore((s) => s.speed)
   const boostMeter = useGameStore((s) => s.boostMeter)
   const interactPrompt = useGameStore((s) => s.interactPrompt)
+  const vehicleHealth = useGameStore((s) => s.vehicleHealth)
+  const vehicleBrokenDown = useGameStore((s) => s.vehicleBrokenDown)
 
   const speedMph = Math.round(Math.abs(speed) * 3.2)
 
@@ -86,6 +88,15 @@ export function HUD({ engine }: Props) {
               <div className="boost-fill" style={{ width: `${boostMeter}%` }} />
             </div>
             <div className="boost-label">BOOST</div>
+          </div>
+          <div className="health-gauge">
+            <div className="health-track">
+              <div
+                className={`health-fill ${vehicleHealth <= 0 ? 'health-broken' : vehicleHealth < 35 ? 'health-critical' : ''}`}
+                style={{ width: `${vehicleHealth}%` }}
+              />
+            </div>
+            <div className="health-label">{vehicleBrokenDown ? 'BROKEN DOWN' : 'VEHICLE'}</div>
           </div>
         </div>
         <Minimap />

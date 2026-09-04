@@ -150,6 +150,10 @@ export interface Order {
   /** 0-100, only meaningful for Fragile/Cold cargo. */
   condition: number
   mysteryRevealed: boolean
+  /** Set only for hand-authored career milestone deliveries (see data/milestones.ts). */
+  milestoneId?: string
+  milestoneTitle?: string
+  milestoneFlavor?: string
 }
 
 export interface DeliveryResult {
@@ -211,6 +215,8 @@ export interface SaveData {
   cargoBonusSlots: number
   ownedProperties: string[]
   staff: StaffMember[]
+  vehicleHealth: Partial<Record<VehicleTierId, number>>
+  completedMilestones: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +240,26 @@ export interface PropertyDef {
   /** Where this property physically sits in the world, so it's a place you can actually drive to. */
   districtId: string
   grid: [number, number]
+}
+
+// ---------------------------------------------------------------------------
+// Career milestones: hand-authored "boss delivery" beats gated by Rep
+// ---------------------------------------------------------------------------
+
+export interface MilestoneDef {
+  id: string
+  title: string
+  flavor: string
+  repRequired: number
+  pickupDistrictId: string
+  dropoffDistrictId: string
+  pickupLabel: string
+  dropoffLabel: string
+  itemType: ItemType
+  timeLimit: number
+  payout: number
+  repReward: number
+  vip?: boolean
 }
 
 export interface RunStats {
