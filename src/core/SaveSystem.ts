@@ -20,6 +20,7 @@ export function defaultSaveData(): SaveData {
     staff: [],
     vehicleHealth: {},
     completedMilestones: [],
+    stats: { deliveriesCompleted: 0, deliveriesFailed: 0, totalEarned: 0 },
   }
 }
 

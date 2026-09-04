@@ -142,12 +142,12 @@ export function ShopScreen({ engine }: Props) {
             {VEHICLE_ORDER.map((id) => {
               const def = VEHICLES[id]
               const cost = HIRE_COST[id]
-              const net = STAFF_INCOME_PER_CYCLE[id] - STAFF_WAGE_PER_CYCLE[id]
+              const avgNet = STAFF_INCOME_PER_CYCLE[id] - STAFF_WAGE_PER_CYCLE[id]
               return (
                 <div className="vehicle-card" key={id}>
                   <div className="vehicle-name">Hire a {def.name} driver</div>
                   <div className="vehicle-stats">
-                    <span>+${net}/cycle net</span>
+                    <span>~${avgNet}/cycle avg — swings low to a big contract</span>
                   </div>
                   <button className="btn-secondary" disabled={cash < cost || staff.length >= staffCapacity} onClick={() => engine.current?.hireStaff(id)}>
                     Hire ${cost}

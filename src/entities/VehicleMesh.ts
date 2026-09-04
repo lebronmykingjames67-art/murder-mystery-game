@@ -5,6 +5,8 @@ export interface VehicleMeshResult {
   group: THREE.Group
   wheels: THREE.Mesh[]
   riderMount: THREE.Object3D
+  headlight: THREE.SpotLight
+  headlightBulb: THREE.Mesh
 }
 
 const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.3, 14)
@@ -108,14 +110,23 @@ export function buildVehicleMesh(def: VehicleDef): VehicleMeshResult {
     }
   }
 
-  const headlight = new THREE.Mesh(
+  const headlightBulb = new THREE.Mesh(
     new THREE.SphereGeometry(0.12, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2b0, emissiveIntensity: 1.2 }),
+    new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2b0, emissiveIntensity: 0.4 }),
   )
   const frontZ = def.bodyStyle === 'van' ? 2.15 : def.bodyStyle === 'car' ? 1.65 : 0.75
-  headlight.position.set(0, 0.55, frontZ)
+  headlightBulb.position.set(0, 0.55, frontZ)
+  group.add(headlightBulb)
+
+  // Off by default (intensity 0) — GameEngine switches it on for the player's own vehicle at night.
+  const headlight = new THREE.SpotLight(0xfff2c8, 0, 34, Math.PI / 5.5, 0.45, 1.4)
+  headlight.position.set(0, 0.6, frontZ)
+  const headlightTarget = new THREE.Object3D()
+  headlightTarget.position.set(0, 0.1, frontZ + 12)
+  group.add(headlightTarget)
+  headlight.target = headlightTarget
   group.add(headlight)
 
   group.add(riderMount)
-  return { group, wheels, riderMount }
+  return { group, wheels, riderMount, headlight, headlightBulb }
 }

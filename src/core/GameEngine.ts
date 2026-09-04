@@ -7,6 +7,7 @@ import { TrafficManager } from '../entities/TrafficAgent'
 import { PedestrianManager } from '../entities/Pedestrian'
 import { FleetManager } from '../entities/FleetManager'
 import { RainSystem } from '../entities/RainSystem'
+import { buildSkySprite, disposeSkySprite } from '../world/sky'
 import { ChaseCamera } from './ChaseCamera'
 import { InputManager, KEYS } from './InputManager'
 import { GameLoop } from './GameLoop'
@@ -26,7 +27,7 @@ import { MILESTONES } from '../data/milestones'
 import { loadSave, writeSave, SAVE_VERSION } from './SaveSystem'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from './time'
-import type { NavInfo, Order, RoadNode, SaveData, UpgradeSlotType, VehicleTierId } from '../types'
+import type { NavInfo, Order, RoadNode, RunStats, SaveData, UpgradeSlotType, VehicleTierId } from '../types'
 
 const DEPOT_RADIUS = 10
 const AUTOSAVE_INTERVAL = 12
@@ -59,6 +60,8 @@ export class GameEngine {
   private readonly vehicle: PlayerVehicle
   private readonly sun: THREE.DirectionalLight
   private readonly ambient: THREE.AmbientLight
+  private readonly sunSprite: THREE.Sprite
+  private readonly moonSprite: THREE.Sprite
   private readonly fog: THREE.Fog
   private readonly navCamera = new THREE.PerspectiveCamera(58, 1.4, 0.1, 500)
   private navRenderer: THREE.WebGLRenderer | null = null
@@ -71,6 +74,9 @@ export class GameEngine {
   private vehicleHealth: Partial<Record<VehicleTierId, number>>
   private readonly completedMilestones: Set<string>
   private milestoneCheckTimer = 0
+  private readonly stats: RunStats
+  /** Consecutive on-time deliveries this session — not persisted, resets like any arcade combo. */
+  private deliveryStreak = 0
 
   private readonly markers = new Map<string, THREE.Group>()
   private routeLine: THREE.Mesh | null = null
@@ -91,6 +97,7 @@ export class GameEngine {
     this.upgrades = save.upgrades
     this.vehicleHealth = { ...save.vehicleHealth }
     this.completedMilestones = new Set(save.completedMilestones)
+    this.stats = { ...save.stats }
     this.reputation = new ReputationSystem(save)
     this.business = new BusinessSystem(save)
 
@@ -109,6 +116,10 @@ export class GameEngine {
     this.sun = new THREE.DirectionalLight(0xfff2d8, 1.0)
     this.sun.position.set(120, 180, 80)
     this.scene.add(this.sun)
+    this.sunSprite = buildSkySprite('rgba(255,244,214,1)', 70)
+    this.moonSprite = buildSkySprite('rgba(214,224,255,1)', 46)
+    this.scene.add(this.sunSprite)
+    this.scene.add(this.moonSprite)
 
     this.city = buildCity(this.scene, this.graph)
     this.trafficLights = new TrafficLightSystem(this.city.trafficLights)
@@ -174,6 +185,8 @@ export class GameEngine {
     this.detachNavCanvas()
     this.fleet.dispose()
     this.rain.dispose(this.scene)
+    disposeSkySprite(this.sunSprite)
+    disposeSkySprite(this.moonSprite)
     this.persist()
     this.renderer.dispose()
   }
@@ -423,6 +436,14 @@ export class GameEngine {
           detail: `$${payCycle.income.toFixed(2)} income - $${payCycle.wages.toFixed(2)} wages`,
         })
       }
+      if (payCycle.standout) {
+        this.audio.chaChing(payCycle.standout.amount)
+        useGameStore.getState().pushToast({
+          kind: 'unlock',
+          title: `${payCycle.standout.name} landed a huge contract!`,
+          detail: `+$${payCycle.standout.amount.toFixed(2)} in one cycle`,
+        })
+      }
       this.syncMeta()
       this.persist()
     }
@@ -530,6 +551,9 @@ export class GameEngine {
   private applyCargoDamage(amount: number, retention: number, now: number, reason: string): void {
     const destroyed = this.orders.degradeCondition(amount, retention, now)
     if (destroyed.length === 0) return
+    this.stats.deliveriesFailed += destroyed.length
+    this.deliveryStreak = 0
+    useGameStore.setState({ stats: { ...this.stats }, deliveryStreak: 0 })
     for (const o of destroyed) {
       this.audio.cargoLost()
       useGameStore.getState().pushToast({ kind: 'fail', title: 'Cargo destroyed!', detail: `${o.itemType} order lost — ${reason}.` })
@@ -601,6 +625,10 @@ export class GameEngine {
         const result = this.orders.confirmDropoff(order.id, now, this.currentPayoutMultiplier())
         if (!result) return
         this.cash += result.payout
+        this.stats.deliveriesCompleted += 1
+        this.stats.totalEarned = Math.round((this.stats.totalEarned + result.payout) * 100) / 100
+        if (result.late) this.deliveryStreak = 0
+        else this.deliveryStreak += 1
         const milestoneDef = result.order.milestoneId ? MILESTONES.find((m) => m.id === result.order.milestoneId) : undefined
         const repGain = milestoneDef ? milestoneDef.repReward : this.computeRepGain(result.order.difficultyTier, result.late, result.conditionAtDropoff, result.vip)
         const leveled = this.reputation.addXp(Math.round(result.payout * 1.2))
@@ -609,7 +637,13 @@ export class GameEngine {
         useGameStore.getState().pushToast({
           kind: 'delivery',
           title: result.mystery ? `Mystery Box revealed: $${result.payout.toFixed(2)}` : `Delivered! +$${result.payout.toFixed(2)}`,
-          detail: result.late ? 'Late — reduced payout' : result.vip ? 'VIP delivery bonus!' : `+$${result.tip.toFixed(2)} tip`,
+          detail: result.late
+            ? 'Late — reduced payout, streak reset'
+            : result.vip
+              ? 'VIP delivery bonus!'
+              : this.deliveryStreak > 1
+                ? `🔥 Streak x${this.deliveryStreak} · +$${result.tip.toFixed(2)} tip`
+                : `+$${result.tip.toFixed(2)} tip`,
         })
         if (milestoneDef) {
           this.completedMilestones.add(milestoneDef.id)
@@ -644,7 +678,12 @@ export class GameEngine {
   }
 
   private currentPayoutMultiplier(): number {
-    return this.events.getModifiers().payoutMultiplier * (this.lastIsNight ? 1.12 : 1)
+    return this.events.getModifiers().payoutMultiplier * (this.lastIsNight ? 1.12 : 1) * this.streakMultiplier()
+  }
+
+  /** +3% per consecutive on-time delivery this session, capped at +30% (streak of 10+). */
+  private streakMultiplier(): number {
+    return 1 + Math.min(this.deliveryStreak, 10) * 0.03
   }
 
   private computeRepGain(difficultyTier: number, late: boolean, condition: number, vip: boolean): number {
@@ -663,6 +702,9 @@ export class GameEngine {
         boardChanged = true
       } else if (e.type === 'failed') {
         activeChanged = true
+        this.stats.deliveriesFailed += 1
+        this.deliveryStreak = 0
+        useGameStore.setState({ stats: { ...this.stats }, deliveryStreak: 0 })
         this.audio.cargoLost()
         useGameStore.getState().pushToast({
           kind: 'fail',
@@ -864,17 +906,33 @@ export class GameEngine {
     const isNight = sunHeight < -0.05
     // 0 at midnight, 1 at noon — drives sky color and light intensity together.
     const t = THREE.MathUtils.clamp((sunHeight + 1) / 2, 0, 1)
+    // Peaks when the sun sits right at the horizon (sunrise/sunset), fades out at full day/night.
+    const horizon = THREE.MathUtils.clamp(1 - Math.abs(sunHeight) / 0.35, 0, 1)
 
-    const nightColor = new THREE.Color(0x040610)
+    const nightColor = new THREE.Color(0x02030a)
     const dayColor = new THREE.Color(0x5f8db3)
-    const skyColor = nightColor.clone().lerp(dayColor, t)
+    const horizonColor = new THREE.Color(0xff8a52)
+    const skyColor = nightColor.clone().lerp(dayColor, t).lerp(horizonColor, horizon * 0.55)
     this.scene.background = skyColor
     this.fog.color = skyColor
 
-    this.sun.intensity = THREE.MathUtils.lerp(0.08, 1.3, t)
-    this.sun.color.setHex(isNight ? 0x8fa5ff : 0xfff2d8)
-    this.ambient.intensity = THREE.MathUtils.lerp(0.22, 0.65, t)
+    this.sun.intensity = THREE.MathUtils.lerp(0.05, 1.3, t)
+    const sunColor = new THREE.Color(0x8fa5ff).lerp(new THREE.Color(0xfff2d8), t).lerp(new THREE.Color(0xffb066), horizon * 0.7)
+    this.sun.color.copy(sunColor)
+    this.ambient.intensity = THREE.MathUtils.lerp(0.16, 0.65, t)
     this.sun.position.set(Math.cos(angle) * 200, Math.max(30, sunHeight * 220), Math.sin(angle) * 200)
+
+    // Sun and moon sit opposite each other on the same great circle, always far from the vehicle
+    // so they read as distant sky objects no matter where the player drives, and fade out near/
+    // below the horizon instead of hard-cutting.
+    const skyRadius = 400
+    const skyCenter = { x: this.vehicle.x, y: 30, z: this.vehicle.z }
+    this.sunSprite.position.set(skyCenter.x + Math.cos(angle) * skyRadius, skyCenter.y + Math.max(-40, sunHeight) * 180, skyCenter.z + Math.sin(angle) * skyRadius)
+    this.moonSprite.position.set(skyCenter.x - Math.cos(angle) * skyRadius, skyCenter.y + Math.max(-40, -sunHeight) * 180, skyCenter.z - Math.sin(angle) * skyRadius)
+    ;(this.sunSprite.material as THREE.SpriteMaterial).opacity = THREE.MathUtils.clamp((sunHeight + 0.05) / 0.2, 0, 1)
+    ;(this.moonSprite.material as THREE.SpriteMaterial).opacity = THREE.MathUtils.clamp((-sunHeight + 0.05) / 0.2, 0, 1) * 0.85
+
+    this.vehicle.setHeadlights(isNight)
 
     this.lastIsNight = isNight
     return { isNight }
@@ -975,6 +1033,8 @@ export class GameEngine {
       vehicleHealth: this.healthOf(this.equippedVehicle),
       vehicleBrokenDown: this.healthOf(this.equippedVehicle) <= 0,
       completedMilestones: [...this.completedMilestones],
+      stats: { ...this.stats },
+      deliveryStreak: this.deliveryStreak,
     })
   }
 
@@ -1002,6 +1062,7 @@ export class GameEngine {
       staff: [...this.business.staff],
       vehicleHealth: { ...this.vehicleHealth },
       completedMilestones: [...this.completedMilestones],
+      stats: { ...this.stats },
     }
     writeSave(save)
   }

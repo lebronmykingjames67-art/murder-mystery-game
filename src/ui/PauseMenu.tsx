@@ -22,6 +22,7 @@ export function PauseMenu({ engine }: Props) {
   const rep = useGameStore((s) => s.rep)
   const cash = useGameStore((s) => s.cash)
   const completedMilestones = useGameStore((s) => s.completedMilestones)
+  const stats = useGameStore((s) => s.stats)
 
   return (
     <div className="modal-overlay" onClick={() => setScreen('none')}>
@@ -34,6 +35,9 @@ export function PauseMenu({ engine }: Props) {
         </div>
         <div className="pause-milestones">
           Career Milestones: {completedMilestones.length}/{MILESTONES.length}
+        </div>
+        <div className="pause-lifetime">
+          Lifetime: {stats.deliveriesCompleted} delivered · {stats.deliveriesFailed} failed · ${stats.totalEarned.toFixed(2)} earned
         </div>
         <button className="btn-primary" onClick={() => setScreen('none')}>
           Resume

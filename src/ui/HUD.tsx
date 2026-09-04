@@ -37,6 +37,7 @@ export function HUD({ engine }: Props) {
   const interactPrompt = useGameStore((s) => s.interactPrompt)
   const vehicleHealth = useGameStore((s) => s.vehicleHealth)
   const vehicleBrokenDown = useGameStore((s) => s.vehicleBrokenDown)
+  const deliveryStreak = useGameStore((s) => s.deliveryStreak)
 
   const speedMph = Math.round(Math.abs(speed) * 3.2)
 
@@ -57,6 +58,11 @@ export function HUD({ engine }: Props) {
           {isNight ? ' \u{1F319}' : ''}
         </div>
         <div className="stat-pill">{formatClock(simNow)}</div>
+        {deliveryStreak > 1 && (
+          <div className="stat-pill streak-stat">
+            🔥 Streak x{deliveryStreak} (+{Math.min(deliveryStreak, 10) * 3}%)
+          </div>
+        )}
         {nextDistrictPreview && (
           <div className="stat-pill next-unlock">
             Next: {nextDistrictPreview.name} (Rep {nextDistrictPreview.repNeeded.toFixed(1)} more)

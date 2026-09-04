@@ -39,6 +39,7 @@ export class PlayerVehicle {
   private scene: THREE.Scene
   private mesh: VehicleMeshResult
   private wheelSpin = 0
+  private headlightsOn = false
 
   constructor(scene: THREE.Scene, def: VehicleDef) {
     this.scene = scene
@@ -59,6 +60,19 @@ export class PlayerVehicle {
     }
     this.mesh.group.position.set(this.x, 0, this.z)
     this.mesh.group.rotation.y = this.heading
+    this.applyHeadlightState()
+  }
+
+  /** Switches the player's headlights on/off — the fresh-mesh path (setVehicleDef) reapplies whatever state was last set. */
+  setHeadlights(on: boolean): void {
+    if (this.headlightsOn === on) return
+    this.headlightsOn = on
+    this.applyHeadlightState()
+  }
+
+  private applyHeadlightState(): void {
+    this.mesh.headlight.intensity = this.headlightsOn ? 4.5 : 0
+    ;(this.mesh.headlightBulb.material as THREE.MeshStandardMaterial).emissiveIntensity = this.headlightsOn ? 2.2 : 0.4
   }
 
   teleport(x: number, z: number, heading = 0): void {

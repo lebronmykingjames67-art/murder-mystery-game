@@ -217,6 +217,7 @@ export interface SaveData {
   staff: StaffMember[]
   vehicleHealth: Partial<Record<VehicleTierId, number>>
   completedMilestones: string[]
+  stats: RunStats
 }
 
 // ---------------------------------------------------------------------------

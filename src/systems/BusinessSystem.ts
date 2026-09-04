@@ -12,6 +12,24 @@ export interface PayCycleResult {
   income: number
   wages: number
   net: number
+  /** The single best individual haul this cycle, if any staffer hit a jackpot-tier result. */
+  standout?: { name: string; amount: number }
+}
+
+// Weighted outcome roll per staffer per cycle — mirrors how the player's own deliveries swing
+// wildly (a slow tier-1 job vs. a VIP payout), instead of everyone earning the exact same amount
+// every cycle. Multiplier ranges are tuned so the weighted average lands on ~1.0x — long-run
+// income stays the same as before, it's just no longer flat.
+const JACKPOT_CHANCE = 0.06
+const SLOW_CHANCE = 0.3
+const JACKPOT_RANGE: [number, number] = [5, 10]
+const SLOW_RANGE: [number, number] = [0.15, 0.5]
+const NORMAL_RANGE: [number, number] = [0.4, 1.0]
+/** A cycle result at or above this multiple of the staffer's base income gets called out in a toast. */
+const STANDOUT_THRESHOLD_MULTIPLIER = 4
+
+function randInRange([min, max]: [number, number]): number {
+  return min + Math.random() * (max - min)
 }
 
 /** Manages hired staff and owned property. Cash checks/deductions stay in GameEngine, matching how vehicle purchases work. */
@@ -65,10 +83,18 @@ export class BusinessSystem {
     this.cycleTimer = CYCLE_SECONDS
     let income = 0
     let wages = 0
+    let standout: { name: string; amount: number } | undefined
     for (const member of this.staff) {
-      income += STAFF_INCOME_PER_CYCLE[member.vehicleTier]
+      const base = STAFF_INCOME_PER_CYCLE[member.vehicleTier]
+      const roll = Math.random()
+      const multiplier = roll < JACKPOT_CHANCE ? randInRange(JACKPOT_RANGE) : roll < JACKPOT_CHANCE + SLOW_CHANCE ? randInRange(SLOW_RANGE) : randInRange(NORMAL_RANGE)
+      const memberIncome = Math.round(base * multiplier * 100) / 100
+      income += memberIncome
       wages += STAFF_WAGE_PER_CYCLE[member.vehicleTier]
+      if (memberIncome >= base * STANDOUT_THRESHOLD_MULTIPLIER && (!standout || memberIncome > standout.amount)) {
+        standout = { name: member.name, amount: memberIncome }
+      }
     }
-    return { income, wages, net: income - wages }
+    return { income: Math.round(income * 100) / 100, wages, net: Math.round((income - wages) * 100) / 100, standout }
   }
 }

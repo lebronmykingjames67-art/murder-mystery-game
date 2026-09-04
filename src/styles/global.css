@@ -218,6 +218,11 @@ button:disabled {
   font-weight: 600;
 }
 
+.streak-stat {
+  color: #ff9a4a;
+  font-weight: 800;
+}
+
 .hud-orders {
   position: absolute;
   top: 64px;
@@ -847,6 +852,13 @@ button:disabled {
   font-size: 0.78rem;
   color: var(--purple);
   font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.pause-lifetime {
+  text-align: center;
+  font-size: 0.74rem;
+  color: var(--text-dim);
   margin-bottom: 18px;
 }
 
