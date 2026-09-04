@@ -46,11 +46,11 @@ export const PROPERTIES: PropertyDef[] = [
 /** Passive income each hire earns you per pay cycle, before wages — scales with their vehicle tier. */
 export const STAFF_INCOME_PER_CYCLE: Record<VehicleTierId, number> = {
   bicycle: 4,
-  ebike: 7,
-  scooter: 10,
-  motorbike: 16,
-  car: 26,
-  van: 42,
+  ebike: 8,
+  scooter: 13,
+  motorbike: 23,
+  car: 40,
+  van: 69,
 }
 
 /** What you pay each hire per cycle, regardless of how business is going. */
@@ -58,15 +58,19 @@ export const STAFF_WAGE_PER_CYCLE: Record<VehicleTierId, number> = {
   bicycle: 1,
   ebike: 2,
   scooter: 3,
-  motorbike: 4,
-  car: 6,
-  van: 9,
+  motorbike: 5,
+  car: 8,
+  van: 14,
 }
 
 export const CYCLE_SECONDS = 25
-export const HIRE_FEE_MULTIPLIER = 1.4
-export const HIRE_FLAT_FEE = 150
 
-export function hireCost(vehicleCost: number): number {
-  return Math.round(vehicleCost * HIRE_FEE_MULTIPLIER + HIRE_FLAT_FEE)
+/** One-time fee to hire a staffer for this vehicle tier — well under the tier's own vehicle price. */
+export const HIRE_COST: Record<VehicleTierId, number> = {
+  bicycle: 100,
+  ebike: 300,
+  scooter: 700,
+  motorbike: 1800,
+  car: 4000,
+  van: 9000,
 }

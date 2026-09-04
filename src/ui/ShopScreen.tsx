@@ -1,7 +1,7 @@
 import type { EngineRef } from '../App'
 import { getUpgradeSlots, VEHICLE_ORDER, VEHICLES } from '../data/vehicles'
 import { nextUpgradeCost } from '../systems/UpgradeSystem'
-import { PROPERTIES, hireCost, STAFF_INCOME_PER_CYCLE, STAFF_WAGE_PER_CYCLE } from '../data/business'
+import { PROPERTIES, HIRE_COST, STAFF_INCOME_PER_CYCLE, STAFF_WAGE_PER_CYCLE } from '../data/business'
 import { useGameStore } from '../state/gameStore'
 
 interface Props {
@@ -125,7 +125,7 @@ export function ShopScreen({ engine }: Props) {
           <div className="vehicle-grid">
             {VEHICLE_ORDER.map((id) => {
               const def = VEHICLES[id]
-              const cost = hireCost(def.cost)
+              const cost = HIRE_COST[id]
               const net = STAFF_INCOME_PER_CYCLE[id] - STAFF_WAGE_PER_CYCLE[id]
               return (
                 <div className="vehicle-card" key={id}>

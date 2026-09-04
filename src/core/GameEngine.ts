@@ -20,7 +20,7 @@ import { BusinessSystem } from '../systems/BusinessSystem'
 import { computeEffectiveStats, nextUpgradeCost, vehicleDef } from '../systems/UpgradeSystem'
 import { VEHICLES } from '../data/vehicles'
 import { DISTRICTS } from '../data/districts'
-import { PROPERTIES, hireCost } from '../data/business'
+import { PROPERTIES, HIRE_COST } from '../data/business'
 import { loadSave, writeSave, SAVE_VERSION } from './SaveSystem'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from './time'
@@ -261,7 +261,7 @@ export class GameEngine {
 
   hireStaff(vehicleTier: VehicleTierId): { ok: boolean; reason?: string } {
     if (!this.business.canHire()) return { ok: false, reason: 'No room — buy a property to expand your roster.' }
-    const cost = hireCost(vehicleDef(vehicleTier).cost)
+    const cost = HIRE_COST[vehicleTier]
     if (this.cash < cost) return { ok: false, reason: 'Not enough cash.' }
     const hired = this.business.hire(vehicleTier, this.currentNow)
     if (!hired) return { ok: false, reason: 'No room — buy a property to expand your roster.' }
