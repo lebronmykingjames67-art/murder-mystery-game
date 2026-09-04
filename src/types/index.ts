@@ -209,6 +209,28 @@ export interface SaveData {
   unlockedDistricts: string[]
   unlockedRoutes: string[]
   cargoBonusSlots: number
+  ownedProperties: string[]
+  staff: StaffMember[]
+}
+
+// ---------------------------------------------------------------------------
+// Business: hired staff & property
+// ---------------------------------------------------------------------------
+
+export interface StaffMember {
+  id: string
+  name: string
+  vehicleTier: VehicleTierId
+  hiredAt: number
+}
+
+export interface PropertyDef {
+  id: string
+  name: string
+  cost: number
+  capacity: number
+  unlockRep: number
+  description: string
 }
 
 export interface RunStats {

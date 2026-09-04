@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { GameEvent } from '../systems/EventManager'
-import type { GlobalModifiers, NavInfo, Order, UpgradeSlotType, VehicleTierId } from '../types'
+import type { GlobalModifiers, NavInfo, Order, StaffMember, UpgradeSlotType, VehicleTierId } from '../types'
 
 export type ScreenId = 'none' | 'orderBoard' | 'shop' | 'map' | 'pause'
 
@@ -50,6 +50,9 @@ export interface GameStoreState {
   toasts: Toast[]
   screen: ScreenId
   muted: boolean
+  ownedProperties: string[]
+  staff: StaffMember[]
+  staffCapacity: number
 
   pushToast: (toast: Omit<Toast, 'id' | 'createdAt'>) => void
   dismissToast: (id: string) => void
@@ -94,6 +97,9 @@ export const useGameStore = create<GameStoreState>((set) => ({
   toasts: [],
   screen: 'none',
   muted: false,
+  ownedProperties: [],
+  staff: [],
+  staffCapacity: 0,
 
   pushToast: (toast) =>
     set((state) => {

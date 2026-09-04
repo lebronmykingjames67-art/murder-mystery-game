@@ -16,6 +16,8 @@ export function defaultSaveData(): SaveData {
     unlockedDistricts: ['downtown'],
     unlockedRoutes: [],
     cargoBonusSlots: 0,
+    ownedProperties: [],
+    staff: [],
   }
 }
 

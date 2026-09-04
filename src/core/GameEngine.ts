@@ -5,6 +5,7 @@ import type { CityBuildResult } from '../world/CityBuilder'
 import { PlayerVehicle } from '../entities/PlayerVehicle'
 import { TrafficManager } from '../entities/TrafficAgent'
 import { PedestrianManager } from '../entities/Pedestrian'
+import { FleetManager } from '../entities/FleetManager'
 import { ChaseCamera } from './ChaseCamera'
 import { InputManager, KEYS } from './InputManager'
 import { GameLoop } from './GameLoop'
@@ -15,9 +16,11 @@ import { EventManager } from '../systems/EventManager'
 import type { EventWorldState, GameEvent } from '../systems/EventManager'
 import { ReputationSystem } from '../systems/ReputationSystem'
 import { TrafficLightSystem } from '../systems/TrafficLightSystem'
+import { BusinessSystem } from '../systems/BusinessSystem'
 import { computeEffectiveStats, nextUpgradeCost, vehicleDef } from '../systems/UpgradeSystem'
 import { VEHICLES } from '../data/vehicles'
 import { DISTRICTS } from '../data/districts'
+import { PROPERTIES, hireCost } from '../data/business'
 import { loadSave, writeSave, SAVE_VERSION } from './SaveSystem'
 import { useGameStore } from '../state/gameStore'
 import { dayCycle } from './time'
@@ -48,6 +51,8 @@ export class GameEngine {
   private readonly traffic: TrafficManager
   private readonly trafficLights: TrafficLightSystem
   private readonly pedestrians: PedestrianManager
+  private readonly business: BusinessSystem
+  private readonly fleet: FleetManager
   private readonly vehicle: PlayerVehicle
   private readonly sun: THREE.DirectionalLight
   private readonly ambient: THREE.AmbientLight
@@ -79,6 +84,7 @@ export class GameEngine {
     this.equippedVehicle = save.equippedVehicle
     this.upgrades = save.upgrades
     this.reputation = new ReputationSystem(save)
+    this.business = new BusinessSystem(save)
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
@@ -105,6 +111,8 @@ export class GameEngine {
 
     this.traffic = new TrafficManager(this.scene, this.graph, this.reputation.unlockedDistricts)
     this.pedestrians = new PedestrianManager(this.scene, this.graph, this.reputation.unlockedDistricts)
+    this.fleet = new FleetManager(this.scene, this.graph)
+    this.fleet.syncRoster(this.business.staff, this.reputation.unlockedDistricts)
 
     const worldState: EventWorldState = {
       graph: this.graph,
@@ -154,6 +162,7 @@ export class GameEngine {
     this.input.dispose()
     window.removeEventListener('resize', this.resizeHandler)
     this.detachNavCanvas()
+    this.fleet.dispose()
     this.persist()
     this.renderer.dispose()
   }
@@ -249,6 +258,45 @@ export class GameEngine {
     return { ok: true }
   }
 
+  hireStaff(vehicleTier: VehicleTierId): { ok: boolean; reason?: string } {
+    if (!this.business.canHire()) return { ok: false, reason: 'No room — buy a property to expand your roster.' }
+    const cost = hireCost(vehicleDef(vehicleTier).cost)
+    if (this.cash < cost) return { ok: false, reason: 'Not enough cash.' }
+    const hired = this.business.hire(vehicleTier, this.currentNow)
+    if (!hired) return { ok: false, reason: 'No room — buy a property to expand your roster.' }
+    this.cash -= cost
+    this.fleet.syncRoster(this.business.staff, this.reputation.unlockedDistricts)
+    this.audio.uiClick()
+    useGameStore.getState().pushToast({ kind: 'unlock', title: `Hired ${hired.name}`, detail: `Driving a ${vehicleDef(vehicleTier).name} for you now.` })
+    this.syncMeta()
+    this.persist()
+    return { ok: true }
+  }
+
+  fireStaff(staffId: string): { ok: boolean; reason?: string } {
+    if (!this.business.fire(staffId)) return { ok: false, reason: 'Not found.' }
+    this.fleet.syncRoster(this.business.staff, this.reputation.unlockedDistricts)
+    this.audio.uiClick()
+    this.syncMeta()
+    this.persist()
+    return { ok: true }
+  }
+
+  buyProperty(id: string): { ok: boolean; reason?: string } {
+    const def = PROPERTIES.find((p) => p.id === id)
+    if (!def) return { ok: false, reason: 'Unknown property.' }
+    if (this.business.ownedProperties.has(id)) return { ok: false, reason: 'Already owned.' }
+    if (this.reputation.rep < def.unlockRep) return { ok: false, reason: `Requires Rep ${def.unlockRep}.` }
+    if (this.cash < def.cost) return { ok: false, reason: 'Not enough cash.' }
+    this.cash -= def.cost
+    this.business.buyProperty(id)
+    this.audio.unlock()
+    useGameStore.getState().pushToast({ kind: 'unlock', title: `Property acquired: ${def.name}`, detail: `+${def.capacity} hire slots.` })
+    this.syncMeta()
+    this.persist()
+    return { ok: true }
+  }
+
   teleportToDepot(): void {
     const depot = this.city.depotPosition
     this.vehicle.teleport(depot.x + 7, depot.z, 0)
@@ -311,6 +359,21 @@ export class GameEngine {
     this.trafficLights.update(elapsed)
     this.traffic.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts, this.trafficLights)
     this.pedestrians.update(dt, this.vehicle.x, this.vehicle.z, this.reputation.unlockedDistricts)
+    this.fleet.update(dt, this.reputation.unlockedDistricts, this.trafficLights)
+
+    const payCycle = this.business.update(dt)
+    if (payCycle) {
+      this.cash += payCycle.net
+      if (payCycle.income > 0) {
+        useGameStore.getState().pushToast({
+          kind: 'delivery',
+          title: `Your team earned +$${payCycle.net.toFixed(2)}`,
+          detail: `$${payCycle.income.toFixed(2)} income - $${payCycle.wages.toFixed(2)} wages`,
+        })
+      }
+      this.syncMeta()
+      this.persist()
+    }
     for (const t of this.traffic.positions()) {
       const dist = Math.hypot(t.x - this.vehicle.x, t.z - this.vehicle.z)
       if (dist < 2.6) {
@@ -811,6 +874,9 @@ export class GameEngine {
       upgrades: this.upgrades,
       unlockedDistricts: [...this.reputation.unlockedDistricts],
       unlockedRoutes: [...this.reputation.unlockedRoutes],
+      ownedProperties: [...this.business.ownedProperties],
+      staff: [...this.business.staff],
+      staffCapacity: this.business.capacity(),
     })
   }
 
@@ -834,6 +900,8 @@ export class GameEngine {
       unlockedDistricts: [...this.reputation.unlockedDistricts],
       unlockedRoutes: [...this.reputation.unlockedRoutes],
       cargoBonusSlots: 0,
+      ownedProperties: [...this.business.ownedProperties],
+      staff: [...this.business.staff],
     }
     writeSave(save)
   }
